@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BST Animals</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ═══════════════ PANTALLA: INICIO ═══════════════ -->
+  <div id="screenStart" class="screen active">
+    <div class="panel">
+      <h1 class="title">BST Animals</h1>
+      <p class="subtitle">Juego cooperativo de cartas para 2–5 jugadores</p>
+
+      <div id="startButtons">
+        <button class="btn btn-primary" onclick="UI.showHostSetup()">Crear sala (host)</button>
+        <button class="btn btn-secondary" onclick="UI.showJoinSetup()">Unirme a una sala</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PANTALLA: CREAR SALA ═══════════════ -->
+  <div id="screenHostSetup" class="screen">
+    <div class="panel">
+      <h2>Crear sala</h2>
+      <label>Tu nombre</label>
+      <input id="hostName" type="text" placeholder="Escribe tu nombre" maxlength="20">
+
+      <label>Dificultad</label>
+      <select id="hostDifficulty">
+        <option value="Easy">Fácil — 15 vidas</option>
+        <option value="Normal" selected>Normal — 12 vidas</option>
+        <option value="Hard">Difícil — 9 vidas</option>
+        <option value="Expert">Experto — 6 vidas</option>
+      </select>
+
+      <button class="btn btn-primary" onclick="GameRoom.createRoom()">Crear sala</button>
+      <button class="btn btn-text" onclick="UI.showStart()">← Volver</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PANTALLA: UNIRSE A SALA ═══════════════ -->
+  <div id="screenJoinSetup" class="screen">
+    <div class="panel">
+      <h2>Unirme a una sala</h2>
+      <label>Tu nombre</label>
+      <input id="joinName" type="text" placeholder="Escribe tu nombre" maxlength="20">
+
+      <label>Código de sala</label>
+      <input id="joinCode" type="text" placeholder="Ej: AB3X7" maxlength="5"
+             style="text-transform:uppercase; text-align:center; letter-spacing:4px; font-size:20px;">
+
+      <button class="btn btn-primary" onclick="GameRoom.joinRoom()">Unirme</button>
+      <button class="btn btn-text" onclick="UI.showStart()">← Volver</button>
+      <p id="joinError" class="error-text"></p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PANTALLA: LOBBY (esperando jugadores) ═══════════════ -->
+  <div id="screenLobby" class="screen">
+    <div class="panel panel-wide">
+      <h2>Sala: <span id="lobbyCode" class="code-display"></span></h2>
+      <p class="hint">Comparte este código con tus amigos</p>
+
+      <div id="lobbyPlayers" class="player-list"></div>
+
+      <button id="lobbyStartBtn" class="btn btn-primary" onclick="GameRoom.startGame()" style="display:none;">
+        Comenzar partida
+      </button>
+      <p id="lobbyWaitMsg" class="hint">Esperando a que el host inicie la partida...</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════ PANTALLA: JUEGO PRINCIPAL ═══════════════ -->
+  <div id="screenGame" class="screen">
+
+    <!-- Barra superior -->
+    <div class="topbar">
+      <span class="topbar-title">BST Animals</span>
+      <span class="topbar-pill" id="topRoomCode"></span>
+      <span class="topbar-info" id="topLevelInfo"></span>
+      <span class="topbar-info" id="topDifficulty"></span>
+      <div class="topbar-right">
+        <span class="lives-display">♥ <span id="topLives"></span>/<span id="topMaxLives"></span></span>
+        <span class="phase-pill" id="topPhase"></span>
+      </div>
+    </div>
+
+    <!-- Barra de jugadores -->
+    <div id="playersBar" class="players-bar"></div>
+
+    <!-- Flash de carta Ruidosa -->
+    <div id="loudFlash" class="loud-flash" style="display:none;">
+      🔊 ¡CARTA RUIDOSA! Todos revelen brevemente su carta más alta (3 segundos)
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="board" onclick="UI.showTab('board')">Tablero</button>
+      <button class="tab-btn" data-tab="missions" onclick="UI.showTab('missions')">Misiones</button>
+      <button class="tab-btn" data-tab="log" onclick="UI.showTab('log')">Registro</button>
+      <button class="tab-btn" data-tab="players" onclick="UI.showTab('players')">Jugadores</button>
+    </div>
+
+    <!-- Contenido de tabs -->
+    <div class="tab-content">
+      <div id="tabBoard" class="tab-pane active"></div>
+      <div id="tabMissions" class="tab-pane"></div>
+      <div id="tabLog" class="tab-pane"></div>
+      <div id="tabPlayers" class="tab-pane"></div>
+    </div>
+
+    <!-- Zona de mano (siempre visible al jugar) -->
+    <div id="handZone" class="hand-zone" style="display:none;">
+      <div class="hand-toolbar" id="handToolbar"></div>
+      <div class="hand-cards" id="handCards"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ Firebase SDK ═══════════════ -->
+  <script type="module" src="js/firebase-init.js"></script>
+
+  <!-- ═══════════════ Lógica del juego (orden importa) ═══════════════ -->
+  <script type="module" src="js/gameData.js"></script>
+  <script type="module" src="js/gameLogic.js"></script>
+  <script type="module" src="js/ui.js"></script>
+  <script type="module" src="js/cardRender.js"></script>
+  <script type="module" src="js/boardRender.js"></script>
+  <script type="module" src="js/missionRender.js"></script>
+  <script type="module" src="js/gameRoom.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
