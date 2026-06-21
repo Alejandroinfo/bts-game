@@ -2,9 +2,17 @@
 // CARD RENDER — Cartas en HTML/CSS puro (sin imágenes)
 // ════════════════════════════════════════════════════════════════
 
-function renderCard(card, { small = false, selected = false, faceDown = false, onClick = null } = {}) {
+function renderCard(card, {
+  small = false,
+  selected = false,
+  faceDown = false,
+  onClick = null,          // click en la carta -> jugarla de inmediato
+  onSignalClick = null,    // click en el botón 📡 -> seleccionarla para señal
+  hidePersonality = false, // Fase 1 del tutorial: solo números, sin color ni personalidad
+} = {}) {
   const div = document.createElement("div");
   div.className = `bst-card ${small ? "small" : ""} ${selected ? "selected" : ""} ${faceDown ? "face-down" : ""}`;
+  div.style.position = "relative";
 
   if (faceDown || !card) {
     div.textContent = "BST";
@@ -13,7 +21,7 @@ function renderCard(card, { small = false, selected = false, faceDown = false, o
   }
 
   const topBand = document.createElement("div");
-  topBand.className = `band-top type-${card.type}`;
+  topBand.className = hidePersonality ? "band-top type-Gray" : `band-top type-${card.type}`;
   topBand.innerHTML = `<span>${card.number}</span><span>${card.number}</span>`;
 
   const numberDiv = document.createElement("div");
@@ -31,11 +39,27 @@ function renderCard(card, { small = false, selected = false, faceDown = false, o
   }
 
   const persBand = document.createElement("div");
-  persBand.className = `pers-band pers-${card.personality}`;
-  persBand.textContent = small ? card.personality[0] : card.personality;
+  if (hidePersonality) {
+    persBand.className = "pers-band pers-Common";
+    persBand.textContent = small ? "?" : "?";
+  } else {
+    persBand.className = `pers-band pers-${card.personality}`;
+    persBand.textContent = small ? card.personality[0] : card.personality;
+  }
   div.appendChild(persBand);
 
   if (onClick) div.onclick = onClick;
+
+  // Botón pequeño de señal, esquina superior derecha (solo si se pasa el handler)
+  if (onSignalClick && !small && !hidePersonality) {
+    const sigBtn = document.createElement("button");
+    sigBtn.className = "card-signal-btn";
+    sigBtn.textContent = "📡";
+    sigBtn.title = "Usar esta carta para una señal";
+    sigBtn.onclick = (e) => { e.stopPropagation(); onSignalClick(); };
+    div.appendChild(sigBtn);
+  }
+
   return div;
 }
 

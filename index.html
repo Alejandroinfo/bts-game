@@ -36,6 +36,16 @@
         <option value="Expert">Experto — 6 vidas</option>
       </select>
 
+      <label style="display:flex; align-items:center; gap:8px; margin-top:16px; cursor:pointer;">
+        <input id="hostTutorialMode" type="checkbox" style="width:auto; margin:0;">
+        <span>🎓 Modo Tutorial (6 niveles de práctica antes de empezar)</span>
+      </label>
+
+      <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer;">
+        <input id="hostMissionsEnabled" type="checkbox" style="width:auto; margin:0;" checked>
+        <span>🎯 Misiones activadas (desmárcalo para jugar sin misiones)</span>
+      </label>
+
       <button class="btn btn-primary" onclick="GameRoom.createRoom()">Crear sala</button>
       <button class="btn btn-text" onclick="UI.showStart()">← Volver</button>
     </div>
@@ -83,6 +93,7 @@
       <span class="topbar-info" id="topLevelInfo"></span>
       <span class="topbar-info" id="topDifficulty"></span>
       <div class="topbar-right">
+        <span class="mission-timer" id="missionTimer" style="display:none;"></span>
         <span class="lives-display">♥ <span id="topLives"></span>/<span id="topMaxLives"></span></span>
         <span class="phase-pill" id="topPhase"></span>
       </div>
@@ -95,6 +106,18 @@
     <div id="loudFlash" class="loud-flash" style="display:none;">
       🔊 ¡CARTA RUIDOSA! Todos revelen brevemente su carta más alta (3 segundos)
     </div>
+
+    <!-- Vista previa de Curiosa (cartas del mazo reveladas) -->
+    <div id="curiousFlash" class="curious-flash" style="display:none;"></div>
+
+    <!-- Pila de cartas Tímidas pendientes -->
+    <div id="shyStackZone" class="shy-stack-zone" style="display:none;"></div>
+
+    <!-- Fase de pase Familiar -->
+    <div id="familiarPassZone" class="familiar-pass-zone" style="display:none;"></div>
+
+    <!-- Elección de nueva señal al completar una Pirámide -->
+    <div id="signalChoiceZone" class="signal-choice-zone" style="display:none;"></div>
 
     <!-- Tabs -->
     <div class="tabs">
@@ -125,6 +148,8 @@
   <!-- ═══════════════ Lógica del juego (orden importa) ═══════════════ -->
   <script type="module" src="js/gameData.js"></script>
   <script type="module" src="js/gameLogic.js"></script>
+  <script type="module" src="js/missionTracker.js"></script>
+  <script type="module" src="js/missionEngine.js"></script>
   <script type="module" src="js/ui.js"></script>
   <script type="module" src="js/cardRender.js"></script>
   <script type="module" src="js/boardRender.js"></script>

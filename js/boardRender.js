@@ -1,5 +1,8 @@
 // ════════════════════════════════════════════════════════════════
 // BOARD RENDER — Árbol BST y Pirámide visual
+// Las casillas vacías son solo informativas: el jugador NUNCA
+// elige dónde va una carta, la posición se calcula automáticamente
+// en gameLogic.js (findAutoPosition).
 // ════════════════════════════════════════════════════════════════
 
 function getTreeLayout(height) {
@@ -14,7 +17,7 @@ function getTreeLayout(height) {
   return nodes;
 }
 
-function renderBoard(container, board, levelConfig, { selectedPos = null, onSelectPosition = null } = {}) {
+function renderBoard(container, board, levelConfig, options = {}) {
   container.innerHTML = "";
   if (!levelConfig) return;
 
@@ -42,7 +45,7 @@ function renderBoard(container, board, levelConfig, { selectedPos = null, onSele
     return { cx, cy };
   }
 
-  // Lines (drawn first, below cards)
+  // Líneas de conexión (se dibujan antes, debajo de las cartas)
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("style", `position:absolute;top:0;left:0;width:${boardW}px;height:${boardH}px;`);
   for (const { pos, row, col, totalInRow } of layout) {
@@ -66,7 +69,7 @@ function renderBoard(container, board, levelConfig, { selectedPos = null, onSele
   }
   canvas.appendChild(svg);
 
-  // Nodes (cards or empty slots)
+  // Nodos: carta jugada, o casilla vacía informativa (sin click)
   for (const { pos, row, col, totalInRow } of layout) {
     const { cx, cy } = nodeXY(row, col, totalInRow);
     const card = board[String(pos)] || null;
@@ -79,18 +82,21 @@ function renderBoard(container, board, levelConfig, { selectedPos = null, onSele
     nodeDiv.style.height = CARD_H + "px";
 
     if (card) {
-      const cardEl = window.CardRender.renderCard(card, { small: true });
+      const cardEl = window.CardRender.renderCard(card, {
+        small: true,
+        hidePersonality: !!options.hidePersonality,
+      });
       nodeDiv.appendChild(cardEl);
     } else {
       const slot = document.createElement("div");
-      slot.className = "board-slot" + (selectedPos === pos ? " selected" : "");
+      slot.className = "board-slot";
       slot.style.width = "100%"; slot.style.height = "100%";
+      slot.style.cursor = "default"; // ya no es clickeable
       const posLabel = levelType === "BST"
         ? (pos === 1 ? "raíz" : pos % 2 === 0 ? "< padre" : "> padre")
         : (pos === 1 ? "ápice" : "");
-      slot.innerHTML = `<span class="plus">+</span><span class="pos-label">#${pos}</span>
+      slot.innerHTML = `<span class="plus">·</span><span class="pos-label">#${pos}</span>
         <span class="pos-label" style="color:#777">${posLabel}</span>`;
-      if (onSelectPosition) slot.onclick = () => onSelectPosition(pos);
       nodeDiv.appendChild(slot);
     }
     canvas.appendChild(nodeDiv);

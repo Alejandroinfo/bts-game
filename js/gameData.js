@@ -2,55 +2,68 @@
 // GAME DATA — Cartas, misiones, niveles, dificultad
 // ════════════════════════════════════════════════════════════════
 
-const TYPES = ["Blue","Red","Green","Yellow","Purple","Orange","Pink","Black","White","Gray"];
 const CLASSES = ["Dog","Cat","Bear","Rabbit","Rat","Cow","Tiger","Lion","Shark","Sparrow"];
 
-const PERSONALITY_DIST = {
-  Familiar:    [1,2,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73],
-  Hyperactive: [3,6,12,21,42,51,57,84],
-  Shy:         [9,18,27,33,36,39,45,54,63,66,69,72,78,81,87,90,93,99],
-  Orderly:     [5,10,15,20,25,30,35,40,50,55,60,65,70,75,85,95,100],
-  Loud:        [8,16,24,32,44,48,56,64,76,80,88,96],
-  Common:      [], // filled below
-};
+// ── Sistema fusionado Color + Personalidad ──────────────────────────────
+// El dígito final del número (0-9) determina DIRECTAMENTE tanto el color
+// como la personalidad de la carta. El índice en este array ES el nivel
+// de potencia: 0 = más débil (Common), 9 = más fuerte (Demoledor).
+const DIGIT_TO_PERSONALITY = [
+  "Common",      // dígito 0 — potencia 0 (la más débil)
+  "Loud",        // dígito 1 — potencia 1
+  "Orderly",     // dígito 2 — potencia 2
+  "Curious",     // dígito 3 — potencia 3
+  "Familiar",    // dígito 4 — potencia 4
+  "Shy",         // dígito 5 — potencia 5
+  "Joker",       // dígito 6 — potencia 6
+  "Sacrifice",   // dígito 7 — potencia 7
+  "Hyperactive", // dígito 8 — potencia 8
+  "Demolisher",  // dígito 9 — potencia 9 (la más fuerte)
+];
 
-function buildPersonalityMap() {
-  const assigned = new Set([
-    ...PERSONALITY_DIST.Familiar, ...PERSONALITY_DIST.Hyperactive,
-    ...PERSONALITY_DIST.Shy, ...PERSONALITY_DIST.Orderly, ...PERSONALITY_DIST.Loud,
-  ]);
-  for (let n = 1; n <= 100; n++) if (!assigned.has(n)) PERSONALITY_DIST.Common.push(n);
+const DIGIT_TO_COLOR = [
+  "Gray",    // 0 — Common
+  "Yellow",  // 1 — Loud
+  "Green",   // 2 — Orderly
+  "Orange",  // 3 — Curious
+  "Blue",    // 4 — Familiar
+  "Purple",  // 5 — Shy
+  "Pink",    // 6 — Joker
+  "White",   // 7 — Sacrifice
+  "Red",     // 8 — Hyperactive
+  "Black",   // 9 — Demolisher
+];
 
-  const map = {};
-  for (const [pers, nums] of Object.entries(PERSONALITY_DIST)) {
-    for (const n of nums) map[n] = pers;
-  }
-  return map;
+export function personalityPower(personality) {
+  return DIGIT_TO_PERSONALITY.indexOf(personality);
 }
-const PERSONALITY_MAP = buildPersonalityMap();
 
 export function buildDeck() {
   return Array.from({ length: 100 }, (_, i) => {
     const n = i + 1;
-    const typeIdx = (n - 1) % 10;
+    const lastDigit = n % 10; // 100 -> 0, igual que el resto de decenas
     const classIdx = Math.floor((n - 1) / 10);
     return {
       id: n,
       number: n,
-      type: TYPES[typeIdx],
+      type: DIGIT_TO_COLOR[lastDigit],
       cardClass: CLASSES[classIdx],
-      personality: PERSONALITY_MAP[n] || "Common",
+      personality: DIGIT_TO_PERSONALITY[lastDigit],
     };
   });
 }
 
 export const PERSONALITY_INFO = {
-  Familiar:    "Si juegas dos cartas Familiar consecutivas, el siguiente jugador roba 1 carta",
-  Hyperactive: "Se puede jugar inmediatamente después de cualquier carta, como si fuera la primera",
-  Shy:         "No puede ser objetivo de señales de información de otros jugadores",
-  Orderly:     "Si se coloca secuencialmente en el árbol, otorga +1 punto",
-  Loud:        "Al jugarse, todos los jugadores revelan brevemente su carta más alta (3 segundos)",
-  Common:      "Sin efecto especial. La más numerosa — estadísticamente predecible",
+  Common:      "Sin efecto especial. La más numerosa — estadísticamente predecible (potencia 0)",
+  Loud:        "Al jugarse, todos los jugadores revelan brevemente su carta más alta (3 segundos) (potencia 1)",
+  Orderly:     "Al jugarse, si su padre o algún hijo ya colocado tiene un valor con diferencia exacta de ±1, otorga +1 punto (potencia 2)",
+  Curious:     "Al jugarse, se muestran a todos las 2 cartas de arriba del mazo (sin tomarlas). Luego vuelven al fondo (potencia 3)",
+  Familiar:    "Si 2 Familiar se juegan seguidas, se activa un pase: todos los que tengan una Familiar en mano eligen cuál pasar a su vecino de la izquierda, simultáneamente (potencia 4)",
+  Shy:         "Al jugarse no se coloca de inmediato: se apila (visible a todos) y espera. Se libera en orden inverso cuando alguien juegue una carta normal (potencia 5)",
+  Joker:       "Copia la habilidad de la última carta jugada antes de ella. Si esa carta era Common, no pasa nada (potencia 6)",
+  Sacrifice:   "Al jugarse, descarta otra carta de tu mano (no Common ni Sacrificio) y copia su habilidad (potencia 7)",
+  Hyperactive: "Opcionalmente puede jugarse como si fuera ANTES que la última carta jugada, reubicándola (potencia 8)",
+  Demolisher:  "Al jugarse, elimina cualquier carta ya colocada en el tablero. La posición queda vacía y debe rellenarse respetando padre e hijos (potencia 9, la más fuerte)",
 };
 
 export const LEVELS = [
@@ -64,6 +77,28 @@ export const LEVELS = [
   { level: 8, type: "Pyramid", height: 6, nodes: 63 },
 ];
 
+// ── Tutorial: 3 fases x 2 niveles (BST + Pirámide), siempre tamaño 3 ──────
+// Fase 1 (T1-T2): solo números, sin colores/personalidades visibles ni activas
+// Fase 2 (T3-T4): colores y personalidades visibles y activas
+// Fase 3 (T5-T6): + pool de misiones, puntos, habilidades pagadas
+export const TUTORIAL_LEVELS = [
+  { level: 1, type: "BST",     height: 3, nodes: 7, phase: 1 },
+  { level: 2, type: "Pyramid", height: 3, nodes: 7, phase: 1 },
+  { level: 3, type: "BST",     height: 3, nodes: 7, phase: 2 },
+  { level: 4, type: "Pyramid", height: 3, nodes: 7, phase: 2 },
+  { level: 5, type: "BST",     height: 3, nodes: 7, phase: 3 },
+  { level: 6, type: "Pyramid", height: 3, nodes: 7, phase: 3 },
+];
+
+export const TUTORIAL_PHASE_INFO = {
+  1: { title: "Fase 1 — Solo números",
+       message: "Aprende las reglas de colocación: el árbol BST baja por valor, la pirámide se construye lateralmente. Los colores y habilidades especiales no están activos todavía." },
+  2: { title: "Fase 2 — ¡Colores y personalidades!",
+       message: "Cada carta ahora muestra su color y personalidad. ¡Las habilidades especiales ya están activas! Observa qué hace cada una al jugarla." },
+  3: { title: "Fase 3 — Misiones y puntos",
+       message: "Se desbloquea el pool de misiones, los puntos personales, y las habilidades pagadas (robar carta, ganar vida, redibujar mano). ¡Ya conoces todo el juego!" },
+};
+
 export function cardsPerPlayer(nodes, playerCount) {
   return Math.ceil(nodes / playerCount);
 }
@@ -74,6 +109,11 @@ export const DIFFICULTY = {
   Hard:   { lives:  9, startPts: 1, rangeSignalCost: 3 },
   Expert: { lives:  6, startPts: 0, rangeSignalCost: 3 },
 };
+
+// Pozo de vidas independiente para el tutorial — separado del que se
+// usará luego en los 8 niveles reales. Generoso, porque el objetivo
+// es aprender, no morir por mala suerte mientras se descubren las reglas.
+export const TUTORIAL_DIFFICULTY = { lives: 10, startPts: 2, rangeSignalCost: 1 };
 
 export const SIGNALS_UNLOCKABLE = ["Range", "Pack", "Median", "Color"];
 
@@ -101,26 +141,26 @@ export const MISSIONS = [
   { id:20, level:"Level 2", cost:"1 pt",  type:"Communication", condition:"Tén 4 o más cartas de la misma personalidad en mano", reward:"Una vez por nivel revela la personalidad de cualquier carta en tu mano" },
   { id:21, level:"Level 2", cost:"2 pts", type:"Communication", condition:"Usa al menos 2 señales diferentes durante el nivel", reward:"Desbloquea la Señal de Color sin necesidad de la misión colectiva" },
   { id:22, level:"Level 2", cost:"2 pts", type:"Structure",     condition:"Coloca correctamente las 3 filas superiores de la pirámide", reward:"Cuando juegues el ápice ganas +3 pts" },
-  { id:23, level:"Level 2", cost:"2 pts", type:"Economy",       condition:"Acumula 10 o más puntos al final de este nivel", reward:"El costo de todas tus habilidades pagas se reduce en 1 pt (mínimo 1)" },
+  { id:23, level:"Level 2", cost:"2 pts", type:"Economy",       condition:"Acumula 10 o más puntos PERSONALES al final de este nivel", reward:"El costo de todas tus habilidades pagas se reduce en 1 pt (mínimo 1)" },
   { id:24, level:"Level 2", cost:"2 pts", type:"Communication", condition:"Completa el nivel sin usar señales de tipo Rango", reward:"La Señal de Mediana te cuesta 1 pt en vez de requerir desbloqueo colectivo" },
-  { id:25, level:"Level 2", cost:"3 pts", type:"Economy",       condition:"Completa los primeros 2 niveles con al menos 15 puntos acumulados", reward:"El costo de ganar vidas del pozo baja de 3 a 2 pts" },
+  { id:25, level:"Level 2", cost:"3 pts", type:"Economy",       condition:"Completa los primeros 2 niveles con al menos 15 puntos PERSONALES acumulados", reward:"El costo de ganar vidas del pozo baja de 3 a 2 pts" },
   { id:26, level:"Level 3", cost:"1 pt",  type:"Communication", condition:"Usa la Señal de Mediana por primera vez en este nivel", reward:"La Señal de Mediana ya no usa tu acción de señal esta ronda" },
   { id:27, level:"Level 3", cost:"1 pt",  type:"Economy",       condition:"Juega todas tus cartas sin descartar ni robar de nuevo", reward:"Roba 2 cartas extra al inicio del próximo nivel" },
   { id:28, level:"Level 3", cost:"1 pt",  type:"Structure",     condition:"Completa dos familias diferentes dentro del mismo árbol", reward:"Las familias completas otorgan +2 pts en vez de +1" },
   { id:29, level:"Level 3", cost:"1 pt",  type:"Communication", condition:"Sé el jugador que más señales usa durante el nivel", reward:"Puedes usar cualquier señal una vez por nivel sin costo de puntos" },
   { id:30, level:"Level 3", cost:"1 pt",  type:"Economy",       condition:"Termina el nivel con exactamente 0 cartas en mano", reward:"Roba 1 carta extra además del mínimo al inicio de cada nivel" },
   { id:31, level:"Level 3", cost:"2 pts", type:"Structure",     condition:"Completa el nivel sin usar la Retirada Estratégica", reward:"Si algún árbol se completa con 0 nodos vacíos ganas 4 pts extra" },
-  { id:32, level:"Level 3", cost:"2 pts", type:"Economy",       condition:"Completa los primeros 3 niveles con al menos 15 puntos acumulados", reward:"El costo de ganar vidas del pozo baja de 3 a 2 pts" },
+  { id:32, level:"Level 3", cost:"2 pts", type:"Economy",       condition:"Completa los primeros 3 niveles con al menos 15 puntos PERSONALES acumulados", reward:"El costo de ganar vidas del pozo baja de 3 a 2 pts" },
   { id:33, level:"Level 3", cost:"3 pts", type:"Structure",     condition:"Completa los Niveles 3 y 4 sin Retirada Estratégica", reward:"Una vez por partida reorganiza 3 cartas ya jugadas a posiciones válidas" },
   { id:34, level:"Level 3", cost:"3 pts", type:"Economy",       condition:"Llega al Nivel 5 con el pozo en su máximo inicial", reward:"El grupo empieza el Nivel 5 con 2 vidas extra" },
   { id:35, level:"Level 4", cost:"2 pts", type:"Communication", condition:"Usa las 4 señales diferentes en el mismo nivel", reward:"Puedes usar todas las señales sin costo una vez por nivel el resto del juego" },
   { id:36, level:"Level 4", cost:"2 pts", type:"Economy",       condition:"Juega la primera carta del nivel antes que cualquier otro jugador", reward:"Ganas +2 pts cada vez que seas el primero en jugar en un nivel" },
   { id:37, level:"Level 4", cost:"2 pts", type:"Structure",     condition:"Coloca correctamente el ápice de la pirámide en este nivel", reward:"El ápice cuenta como dos nodos completados para el cálculo de penalización de vidas" },
   { id:38, level:"Level 4", cost:"3 pts", type:"Structure",     condition:"Completa dos pirámides sin perder vidas en ninguna", reward:"En niveles Pirámide la penalización de vidas por nodos incompletos se reduce a la mitad" },
-  { id:39, level:"Level 4", cost:"3 pts", type:"Economy",       condition:"Completa los primeros 4 niveles con al menos 20 puntos acumulados", reward:"Puedes comprar vidas del pozo por 2 pts en vez de 3" },
+  { id:39, level:"Level 4", cost:"3 pts", type:"Economy",       condition:"Completa los primeros 4 niveles con al menos 20 puntos PERSONALES acumulados", reward:"Puedes comprar vidas del pozo por 2 pts en vez de 3" },
   { id:40, level:"Level 4", cost:"4 pts", type:"Communication", condition:"Completa los primeros 4 niveles usando solo señales gratuitas", reward:"Una vez por partida puedes decir en voz alta el rango exacto de tu mano" },
   { id:41, level:"Level 4", cost:"4 pts", type:"Structure",     condition:"Completa los primeros 4 niveles sin perder ninguna vida", reward:"Una vez por partida puedes rejugar un nivel sin Retirada y sin penalización" },
-  { id:42, level:"Level 4", cost:"4 pts", type:"Economy",       condition:"Acumula 30 pts antes de empezar el Nivel 5", reward:"Ganas 8 pts inmediatamente y reduces el costo de tus habilidades en 1" },
+  { id:42, level:"Level 4", cost:"4 pts", type:"Economy",       condition:"Acumula 30 pts PERSONALES antes de empezar el Nivel 5", reward:"Ganas 8 pts inmediatamente y reduces el costo de tus habilidades en 1" },
 ];
 
 export function shuffle(arr) {
@@ -147,4 +187,5 @@ export function buildMissionPool() {
 window.GameData = {
   buildDeck, PERSONALITY_INFO, LEVELS, cardsPerPlayer,
   DIFFICULTY, SIGNALS_UNLOCKABLE, MISSIONS, shuffle, buildMissionPool,
+  TUTORIAL_LEVELS, TUTORIAL_PHASE_INFO, TUTORIAL_DIFFICULTY, personalityPower,
 };
