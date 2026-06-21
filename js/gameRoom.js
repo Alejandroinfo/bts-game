@@ -294,9 +294,18 @@ async function dealLevel(room) {
 
   const resetStats = window.MissionTracker.resetLevelStats(room.stats || {}, room.sharedLives);
 
+  // Para niveles de Pirámide, el tablero se construye con el sistema
+  // de bloques flotantes (ver pyramidBlocks.js) — necesita su propio
+  // estado persistente además del board plano que se usa para
+  // mostrar y para BST.
+  const pyramidState = levelCfg.type === "Pyramid"
+    ? window.PyramidBlocks.createEmptyPyramid(levelCfg.height)
+    : null;
+
   await update(ref(db, "rooms/" + state.roomCode), Object.assign({}, playerUpdates, {
     phase: "playing",
     board: { "_init": true },
+    pyramidState,
     deckRemaining: deck.slice(deckIdx),
     lastPlayedCard: null,
     lastPlayedBy: null,
@@ -426,7 +435,8 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos) {
   }
 
   // ── SHY: si es Shy y hay margen para apilar, NO se coloca aún ──
-  if (effectivePersonality === "Shy") {
+  // (solo en BST por ahora; en Pirámide se juega directo)
+  if (effectivePersonality === "Shy" && levelCfg.type === "BST") {
     const shyStack = room.shyStack || [];
     const emptySlots = levelCfg.nodes - window.GameLogic.countFilledNodes(board);
     const canStack = window.GameLogic.canStackShy(shyStack.length, emptySlots);
@@ -442,7 +452,7 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos) {
   // que deja podría incluso ser la misma posición donde caiga la nueva.
   let demolishedCard = null;
   let workingBoard = board;
-  if (effectivePersonality === "Demolisher") {
+  if (effectivePersonality === "Demolisher" && levelCfg.type === "BST") {
     if (demolishPos == null) {
       return openDemolisherPicker(cardId, useHyperactive, sacrificeCardId);
     }
@@ -455,39 +465,84 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos) {
 
   let pos;
   let reorderedLast = null; // { pos, value } si Hyperactive reubicó la carta anterior
+  let pyramidStateAfter = null; // estado de bloques actualizado, solo para Pyramid
 
-  if (useHyperactive && effectivePersonality === "Hyperactive" && room.lastPlayedCard && room.lastPlayedPos) {
-    const reorder = window.GameLogic.tryHyperactiveReorder(
-      workingBoard, card.number, room.lastPlayedPos, room.lastPlayedCard.number,
-      levelCfg.type, levelCfg.height
-    );
-    if (!reorder) {
-      return alert("Hyperactive no se puede usar aquí: no hay una forma válida de reordenar");
+  if (levelCfg.type === "BST") {
+    // ── BST: heap fijo de siempre, sin cambios ──────────────────────────
+    if (useHyperactive && effectivePersonality === "Hyperactive" && room.lastPlayedCard && room.lastPlayedPos) {
+      const reorder = window.GameLogic.tryHyperactiveReorder(
+        workingBoard, card.number, room.lastPlayedPos, room.lastPlayedCard.number,
+        levelCfg.type, levelCfg.height
+      );
+      if (!reorder) {
+        return alert("Hyperactive no se puede usar aquí: no hay una forma válida de reordenar");
+      }
+      pos = reorder.hyperPos;
+      reorderedLast = { pos: reorder.newLastPos, value: reorder.lastValue, oldPos: room.lastPlayedPos };
+    } else {
+      pos = window.GameLogic.findAutoPosition(
+        workingBoard, card.number, levelCfg.type, levelCfg.height
+      );
     }
-    pos = reorder.hyperPos;
-    reorderedLast = { pos: reorder.newLastPos, value: reorder.lastValue, oldPos: room.lastPlayedPos };
   } else {
-    pos = window.GameLogic.findAutoPosition(
-      workingBoard, card.number, levelCfg.type, levelCfg.height
-    );
+    // ── PIRÁMIDE: sistema de bloques flotantes con anclaje progresivo ──
+    // Hyperactive y Demolisher no aplican aquí por ahora (la carta se
+    // juega como si fuera Common en términos de posicionamiento).
+    const currentPyramidState = room.pyramidState ||
+      window.PyramidBlocks.createEmptyPyramid(levelCfg.height);
+    // Clonar para no mutar el estado original hasta confirmar el éxito
+    const pyramidCopy = JSON.parse(JSON.stringify(currentPyramidState));
+    const insertResult = window.PyramidBlocks.insertValue(pyramidCopy, card.number);
+
+    if (!insertResult.ok) {
+      return alert("Esa carta no tiene un espacio válido en la pirámide ahora mismo");
+    }
+
+    pyramidStateAfter = pyramidCopy;
+    // pos se determina indirectamente: no usamos heap fijo aquí, el
+    // "board" se recalcula completo más abajo a partir del estado
+    // de bloques. Usamos un valor simbólico para el resto del flujo
+    // que espera "pos" (ej. detectar root/apex).
+    pos = null; // se resuelve más abajo via resolveToBoard/resolveProvisional
   }
 
-  if (pos === null) {
+  if (pos === null && levelCfg.type === "BST") {
     return alert("Esa carta no tiene un espacio válido en el árbol/pirámide ahora mismo");
   }
 
   const { db, ref, update } = window.FB;
   const updates = {};
+  let newBoardForPyramid = null; // solo se usa si levelCfg.type === "Pyramid"
 
-  if (demolishedCard) {
-    updates["board/" + demolishPos] = null; // eliminar la carta demolida
-  }
-  updates["board/" + pos] = card;
+  if (levelCfg.type === "BST") {
+    if (demolishedCard) {
+      updates["board/" + demolishPos] = null; // eliminar la carta demolida
+    }
+    updates["board/" + pos] = card;
 
-  // Si Hyperactive reordenó, mover la carta anterior a su nueva posición
-  if (reorderedLast) {
-    updates["board/" + reorderedLast.oldPos] = null;
-    updates["board/" + reorderedLast.pos] = room.lastPlayedCard;
+    // Si Hyperactive reordenó, mover la carta anterior a su nueva posición
+    if (reorderedLast) {
+      updates["board/" + reorderedLast.oldPos] = null;
+      updates["board/" + reorderedLast.pos] = room.lastPlayedCard;
+    }
+  } else {
+    // Pirámide: el board completo se recalcula a partir del nuevo
+    // estado de bloques. Usamos resolveProvisional para que SIEMPRE
+    // se vea algo en pantalla, aunque la fila aún no esté anclada
+    // con certeza (ver pyramidBlocks.js).
+    updates.pyramidState = pyramidStateAfter;
+    const cardLookup = (v) => {
+      // Buscar la carta real jugada con ese número, para conservar
+      // su personalidad/tipo/clase en el board (no solo el número).
+      if (v === card.number) return card;
+      // Buscar en el board anterior (cartas ya jugadas)
+      for (const existing of Object.values(board)) {
+        if (existing && existing.number === v) return existing;
+      }
+      return { number: v };
+    };
+    newBoardForPyramid = window.PyramidBlocks.resolveProvisional(pyramidStateAfter, cardLookup);
+    updates.board = newBoardForPyramid;
   }
 
   const newHand = Object.assign({}, me.hand);
@@ -517,14 +572,25 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos) {
       ") para copiar su habilidad" + (card.personality === "Joker" ? " vía Joker" : ""));
   }
 
-  if (pos === 1) {
+  // Detectar raíz/ápice: en BST es pos===1; en Pirámide, revisamos
+  // si el board resuelto (estricto) ya tiene la posición 1 ocupada
+  // con esta carta específica.
+  const isRootOrApex = levelCfg.type === "BST"
+    ? pos === 1
+    : (() => {
+        const strict = window.PyramidBlocks.resolveToBoard(pyramidStateAfter,
+          (v) => v === card.number ? card : { number: v });
+        return strict.board["1"] && strict.board["1"].number === card.number;
+      })();
+
+  if (isRootOrApex) {
     pointsDelta += 2;
     justPlayedRoot = true;
     if (levelCfg.type === "Pyramid") justPlayedApex = true;
     logMsgs.push(me.name + " jugó " + card.number + " como raíz! +2 pts");
   }
 
-  if (effectivePersonality === "Orderly" &&
+  if (levelCfg.type === "BST" && effectivePersonality === "Orderly" &&
       window.GameLogic.checkOrderlyBonus(board, pos, card.number)) {
     pointsDelta += 1;
     justPlacedOrderlySequential = true;
@@ -565,31 +631,39 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos) {
 
   updates.lastPlayedCard = card;
   updates.lastPlayedBy = state.myId;
-  updates.lastPlayedPos = pos;
+  updates.lastPlayedPos = levelCfg.type === "BST" ? pos : null;
 
-  // ── Liberar la pila de Shy pendiente (esta carta NO es Shy, o
-  // era Shy pero se jugó como normal por falta de margen) ────────
-  let boardAfterShy = Object.assign({}, workingBoard, { [String(pos)]: card });
-  if (reorderedLast) {
-    delete boardAfterShy[String(reorderedLast.oldPos)];
-    boardAfterShy[String(reorderedLast.pos)] = room.lastPlayedCard;
-  }
-
-  const shyStack = room.shyStack || [];
+  // ── Liberar la pila de Shy pendiente (solo aplica en BST por ahora;
+  // en Pirámide, Shy se juega directo sin apilarse hasta que se
+  // rediseñe su compatibilidad con el sistema de bloques) ──────────
+  let boardAfterShy;
   let shyDiscardedMsgs = [];
-  if (shyStack.length > 0) {
-    const resolved = window.GameLogic.resolveShyStack(
-      boardAfterShy, shyStack, levelCfg.type, levelCfg.height
-    );
-    for (const placement of resolved.placements) {
-      updates["board/" + placement.pos] = placement.card;
-      logMsgs.push("🙈 Se libera carta Shy " + placement.card.number + " → posición " + placement.pos);
+
+  if (levelCfg.type === "BST") {
+    boardAfterShy = Object.assign({}, workingBoard, { [String(pos)]: card });
+    if (reorderedLast) {
+      delete boardAfterShy[String(reorderedLast.oldPos)];
+      boardAfterShy[String(reorderedLast.pos)] = room.lastPlayedCard;
     }
-    for (const disc of resolved.discarded) {
-      shyDiscardedMsgs.push("⚠️ Carta Shy " + disc.card.number + " ya no tenía espacio y se descartó");
+
+    const shyStack = room.shyStack || [];
+    if (shyStack.length > 0) {
+      const resolved = window.GameLogic.resolveShyStack(
+        boardAfterShy, shyStack, levelCfg.type, levelCfg.height
+      );
+      for (const placement of resolved.placements) {
+        updates["board/" + placement.pos] = placement.card;
+        logMsgs.push("🙈 Se libera carta Shy " + placement.card.number + " → posición " + placement.pos);
+      }
+      for (const disc of resolved.discarded) {
+        shyDiscardedMsgs.push("⚠️ Carta Shy " + disc.card.number + " ya no tenía espacio y se descartó");
+      }
+      updates.shyStack = []; // pila vacía tras liberar
+      boardAfterShy = resolved.finalBoard;
     }
-    updates.shyStack = []; // pila vacía tras liberar
-    boardAfterShy = resolved.finalBoard;
+  } else {
+    // Pirámide: el board ya se calculó completo arriba (newBoardForPyramid)
+    boardAfterShy = newBoardForPyramid;
   }
 
   // Tracking: primera carta del nivel (para misión #2 con timer y #36)
@@ -603,8 +677,19 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos) {
   for (const msg of logMsgs) await addLog(state.roomCode, msg);
   for (const msg of shyDiscardedMsgs) await addLog(state.roomCode, msg);
 
-  const newBoard = boardAfterShy;
-  const filled = window.GameLogic.countFilledNodes(newBoard);
+  let newBoard, filled;
+  if (levelCfg.type === "BST") {
+    newBoard = boardAfterShy;
+    filled = window.GameLogic.countFilledNodes(newBoard);
+  } else {
+    // Pirámide: solo cuentan como "llenos" los nodos que el sistema
+    // de bloques ya pudo anclar con certeza (resolveToBoard estricto),
+    // no la versión provisional que se usa solo para mostrar.
+    const strict = window.PyramidBlocks.resolveToBoard(pyramidStateAfter,
+      (v) => v === card.number ? card : { number: v });
+    newBoard = strict.board;
+    filled = Object.keys(newBoard).length;
+  }
 
   // Verificar misión activa de quien jugó la carta, con el contexto
   // de lo que acaba de pasar en esta jugada.
@@ -1298,8 +1383,10 @@ function selectCard(cardId) {
     return playCard(cardId);
   }
 
-  if (card?.personality === "Hyperactive" && room.lastPlayedCard && room.lastPlayedPos != null) {
-    const levelCfg = getCurrentLevelCfg(room);
+  const levelCfg = getCurrentLevelCfg(room);
+
+  if (levelCfg.type === "BST" && card?.personality === "Hyperactive" &&
+      room.lastPlayedCard && room.lastPlayedPos != null) {
     const reorder = window.GameLogic.tryHyperactiveReorder(
       room.board || {}, card.number, room.lastPlayedPos, room.lastPlayedCard.number,
       levelCfg.type, levelCfg.height
@@ -1318,7 +1405,7 @@ function selectCard(cardId) {
     return openSacrificePicker(cardId, "Sacrificio: elige qué carta de tu mano descartar para copiar su habilidad");
   }
 
-  if (card?.personality === "Demolisher") {
+  if (levelCfg.type === "BST" && card?.personality === "Demolisher") {
     return openDemolisherPicker(cardId, false, undefined);
   }
 

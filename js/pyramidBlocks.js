@@ -1,0 +1,418 @@
+// ════════════════════════════════════════════════════════════════
+// PYRAMID BLOCKS — Sistema de bloques flotantes con anclaje
+// progresivo para la estructura de Pirámide.
+//
+// PROBLEMA QUE RESUELVE:
+// En una pirámide construida dinámicamente (sin posiciones de heap
+// fijas desde el inicio), un valor nuevo puede caer "entre" dos
+// valores ya colocados sin que aún se sepa si ese par terminará en
+// el lado izquierdo o derecho de la fila final. Por ejemplo: jugar
+// 15, luego 25 (sube como hijo de 15... pero ¿con qué?), no se
+// puede resolver hasta que el contexto se complete.
+//
+// MODELO:
+// Cada fila es una lista de "bloques" ordenados de izquierda a
+// derecha. Un bloque representa un grupo de valores que YA se sabe
+// que son consecutivos entre sí en la fila final, pero cuya
+// posición ABSOLUTA (empezando desde la izquierda de toda la fila)
+// puede seguir sin determinarse hasta que la fila se complete o
+// hasta que el bloque choque contra un límite.
+//
+// block = {
+//   id: string único,
+//   values: [v1, v2, ...] valores ordenados de este bloque (los que
+//           son "hojas" de este bloque en ESTA fila),
+//   childValue: number | null,  // el valor que subió como hijo de
+//                                 este bloque (si ya se fusionó),
+//   childBlockId: string | null, // id del bloque correspondiente
+//                                 en la fila de arriba
+// }
+//
+// pyramid = {
+//   rows: [ [block, block, ...], [block, ...], ... ], // fila 0 = base
+//   height: number,
+//   maxSlotsPerRow: [n0, n1, ...], // cuántos slots tiene cada fila
+// }
+// ════════════════════════════════════════════════════════════════
+
+let _blockIdCounter = 0;
+function newBlockId() {
+  return "b" + (_blockIdCounter++);
+}
+
+function createEmptyPyramid(height) {
+  const rows = [];
+  const maxSlotsPerRow = [];
+  for (let r = 0; r < height; r++) {
+    rows.push([]);
+    maxSlotsPerRow.push(Math.pow(2, height - 1 - r));
+  }
+  return { rows, height, maxSlotsPerRow };
+}
+
+function rowMinValue(row) {
+  return row[0].values[0];
+}
+function rowMaxValue(row) {
+  const last = row[row.length - 1];
+  return last.values[last.values.length - 1];
+}
+
+// Intenta insertar `value` en la fila `rowIndex`. Devuelve:
+//   { ok: true, childValue: number|null, childGoesInRow: number }
+//   { ok: false }
+// Si el valor genera un hijo (fusiona dos bloques de tamaño 1), se
+// devuelve childValue para que el llamador intente insertarlo en la
+// fila de arriba recursivamente.
+function tryInsertInRow(pyramid, rowIndex, value) {
+  const row = pyramid.rows[rowIndex];
+  const maxSlots = pyramid.maxSlotsPerRow[rowIndex];
+  const currentSlots = row.reduce((sum, b) => sum + b.values.length, 0);
+
+  // Caso 1: fila vacía -> nuevo bloque suelto, sin anchor todavía
+  if (row.length === 0) {
+    row.push({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
+    return { ok: true, childValue: null };
+  }
+
+  const minVal = rowMinValue(row);
+  const maxVal = rowMaxValue(row);
+
+  // Caso 2: menor que todos -> nuevo bloque suelto a la izquierda,
+  // SI hay espacio (no se ha llenado el máximo de columnas lógicas)
+  if (value < minVal) {
+    if (currentSlots >= maxSlots) return { ok: false }; // sin espacio físico
+    row.unshift({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
+    return { ok: true, childValue: null };
+  }
+
+  // Caso 3: mayor que todos -> simétrico a la derecha
+  if (value > maxVal) {
+    if (currentSlots >= maxSlots) return { ok: false };
+    row.push({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
+    return { ok: true, childValue: null };
+  }
+
+  // Caso 4: cae entre dos bloques ADYACENTES en la secuencia actual.
+  //
+  // REGLA DE "PAREJA POTENCIAL": lo que importa es el ÍNDICE DE
+  // POSICIÓN ACUMULADO (contando CARTAS, no bloques) del lado
+  // derecho del bloque izquierdo y el lado izquierdo del bloque
+  // derecho. Esos dos índices deben ser un par válido de heap —es
+  // decir, el índice acumulado del valor de la derecha de `left`
+  // debe ser PAR (posición 0,2,4...) para que junto con el
+  // siguiente (impar) formen una pareja real (0,1),(2,3)...
+  //
+  // Un bloque ya fusionado ocupa varias cartas, así que el índice
+  // del ARRAY no equivale al índice de heap — hay que acumular el
+  // tamaño de todos los bloques anteriores.
+  //
+  // Esta regla aplica SIEMPRE de la misma forma, esté la fila llena
+  // o no — no hay distinción entre "fila abierta" y "fila cerrada".
+  // El efecto dominó (confirmado por el diseño del juego) surge
+  // naturalmente de esto: cuando un bloque ya se fusionó con su
+  // pareja válida, el índice acumulado de los bloques vecinos
+  // cambia, y el bloque que quedó "suelto" puede o no compartir un
+  // índice válido con quien antes era su otro vecino.
+  let accIdx = 0;
+  for (let i = 0; i < row.length - 1; i++) {
+    const left = row[i];
+    const right = row[i + 1];
+    const leftEndIdx = accIdx + left.values.length - 1; // índice acumulado del último valor de left
+    accIdx += left.values.length;
+    const rightStartIdx = accIdx; // índice acumulado del primer valor de right
+
+    if (leftEndIdx % 2 !== 0) continue; // solo pares (0,1),(2,3)... son válidos
+
+    const leftMax = left.values[left.values.length - 1];
+    const rightMin = right.values[0];
+
+    if (value > leftMax && value < rightMin) {
+      if (left.childValue !== null || right.childValue !== null) {
+        continue; // el slot de hijo ya está ocupado, probar el siguiente par
+      }
+
+      // Fusionar left y right en un solo bloque, value sube como
+      // hijo lógico de ese bloque combinado.
+      const merged = {
+        id: newBlockId(),
+        values: [...left.values, ...right.values],
+        childValue: value,
+        childBlockId: null, // se asigna cuando el hijo se inserte arriba
+      };
+      row.splice(i, 2, merged);
+      return { ok: true, childValue: value, parentBlockId: merged.id };
+    }
+  }
+
+  return { ok: false }; // cae en una zona ambigua sin slot válido
+}
+
+// Inserta un valor en la pirámide completa, empezando por la base
+// (fila 0) y subiendo recursivamente si genera hijos.
+// Devuelve { ok: bool }.
+function deepCloneRows(rows) {
+  return rows.map(row => row.map(block => ({ ...block, values: [...block.values] })));
+}
+
+// Variante de tryInsertInRow que SOLO intenta el Caso 4 (fusión).
+// Se usa cuando un valor "rebota" hacia una fila superior porque la
+// base (u otra fila inferior) lo rechazó — en ese caso, el valor
+// JAMÁS puede convertirse en "primera carta" o "extremo" de la fila
+// superior (eso solo es legítimo para valores que llegan como hijo
+// real de una fusión, nunca para un valor que viene directamente
+// del jugador intentando una fila a la que no le corresponde entrar
+// como hoja).
+function tryFusionOnlyInRow(pyramid, rowIndex, value) {
+  const row = pyramid.rows[rowIndex];
+  if (row.length < 2) return { ok: false }; // necesita al menos 2 bloques para fusionar
+
+  let accIdx = 0;
+  for (let i = 0; i < row.length - 1; i++) {
+    const left = row[i];
+    const right = row[i + 1];
+    const leftEndIdx = accIdx + left.values.length - 1;
+    accIdx += left.values.length;
+
+    if (leftEndIdx % 2 !== 0) continue;
+
+    const leftMax = left.values[left.values.length - 1];
+    const rightMin = right.values[0];
+
+    if (value > leftMax && value < rightMin) {
+      if (left.childValue !== null || right.childValue !== null) continue;
+
+      const merged = {
+        id: newBlockId(),
+        values: [...left.values, ...right.values],
+        childValue: value,
+        childBlockId: null,
+      };
+      row.splice(i, 2, merged);
+      return { ok: true, childValue: value, parentBlockId: merged.id };
+    }
+  }
+  return { ok: false };
+}
+
+function insertValue(pyramid, value) {
+  // SIEMPRE se empieza a intentar desde la base (row 0), con todas
+  // las reglas normales (hoja suelta, extremo, o fusión). Si la
+  // base RECHAZA el valor por completo, se prueba si el valor
+  // "rebota" hacia arriba: en las filas superiores SOLO se permite
+  // la fusión (Caso 4) con bloques que YA existen ahí (hijos de
+  // fusiones previas) — nunca como primera carta o extremo, porque
+  // eso solo es legítimo para hijos que suben naturalmente desde
+  // abajo, no para un valor que el jugador intenta meter "a la
+  // fuerza" en una fila que no le corresponde como hoja.
+  const rowsCopy = deepCloneRows(pyramid.rows);
+  const testPyramid = { rows: rowsCopy, height: pyramid.height, maxSlotsPerRow: pyramid.maxSlotsPerRow };
+
+  // Intento 1: flujo normal completo empezando en la base
+  if (tryNormalCascade(testPyramid, 0, value)) {
+    pyramid.rows = rowsCopy;
+    return { ok: true };
+  }
+
+  // Intento 2: rebote — probar fusión-únicamente en cada fila
+  // superior sucesiva, sobre una copia fresca cada vez.
+  for (let startRow = 1; startRow < pyramid.height; startRow++) {
+    const rowsCopy2 = deepCloneRows(pyramid.rows);
+    const testPyramid2 = { rows: rowsCopy2, height: pyramid.height, maxSlotsPerRow: pyramid.maxSlotsPerRow };
+    const result = tryFusionOnlyInRow(testPyramid2, startRow, value);
+    if (result.ok) {
+      if (tryNormalCascadeFromResult(testPyramid2, startRow, result)) {
+        pyramid.rows = rowsCopy2;
+        return { ok: true };
+      }
+    }
+  }
+
+  return { ok: false };
+}
+
+// Ejecuta la cascada normal (hoja, extremo, o fusión) empezando en
+// `startRow` con `value`. Devuelve true/false. Muta `pyramid` in-place.
+function tryNormalCascade(pyramid, startRow, value) {
+  let currentRow = startRow;
+  let currentValue = value;
+  let parentBlockId = null;
+
+  while (currentRow < pyramid.height) {
+    const result = tryInsertInRow(pyramid, currentRow, currentValue);
+    if (!result.ok) return false;
+
+    if (parentBlockId !== null) {
+      const belowRow = pyramid.rows[currentRow - 1];
+      const parentBlock = belowRow.find(b => b.id === parentBlockId);
+      if (parentBlock) {
+        const childBlock = pyramid.rows[currentRow].find(b =>
+          b.values.includes(currentValue) || b.childValue === currentValue
+        );
+        if (childBlock) parentBlock.childBlockId = childBlock.id;
+      }
+    }
+
+    if (result.childValue === null) return true;
+
+    parentBlockId = result.parentBlockId || null;
+    currentValue = result.childValue;
+    currentRow++;
+  }
+  return true;
+}
+
+// Continúa la cascada hacia arriba después de que un rebote ya
+// generó un hijo en `startRow` (resultado `firstResult`).
+function tryNormalCascadeFromResult(pyramid, startRow, firstResult) {
+  if (firstResult.childValue === null) return true; // no debería pasar (fusión siempre genera hijo)
+  return tryNormalCascade(pyramid, startRow + 1, firstResult.childValue);
+}
+
+// ────────────────────────────────────────────────────────────────
+// RESOLUCIÓN DE POSICIONES DE HEAP
+// ────────────────────────────────────────────────────────────────
+// Una vez que se quiere conocer el "board" plano (para renderizar o
+// guardar en Firebase), se recorre cada fila de abajo hacia arriba.
+// Si una fila tiene TODOS sus bloques (suma de values == maxSlots),
+// su orden izquierda->derecha YA define posiciones de heap fijas
+// para esa fila. Si una fila NO está completa, sus bloques pueden
+// no tener posición determinable aún -> se devuelven como "pending"
+// y no se incluyen en el board (la carta del hijo tampoco, porque
+// depende de la posición del bloque padre).
+
+function getRowHeapPositions(height, rowIndexFromBase) {
+  const depthFromTop = height - 1 - rowIndexFromBase;
+  const start = Math.pow(2, depthFromTop);
+  const end = Math.pow(2, depthFromTop + 1) - 1;
+  const positions = [];
+  for (let p = start; p <= end; p++) positions.push(p);
+  return positions;
+}
+
+// Convierte la pirámide de bloques a un board plano {pos: card}.
+// cardLookup: function(value) => card object (para reconstruir el
+// objeto completo de carta, no solo el número).
+function resolveToBoard(pyramid, cardLookup) {
+  const board = {};
+  const pending = []; // valores que no se pudieron anclar (informativo)
+
+  for (let r = 0; r < pyramid.height; r++) {
+    const row = pyramid.rows[r];
+    const maxSlots = pyramid.maxSlotsPerRow[r];
+    const filledSlots = row.reduce((sum, b) => sum + b.values.length, 0);
+    const heapPositions = getRowHeapPositions(pyramid.height, r);
+
+    if (filledSlots < maxSlots) {
+      // Fila incompleta: NO se puede anclar con certeza. Caso
+      // especial: si solo hay 1 bloque y maxSlots==1 (fila trivial,
+      // como el ápice), sí se puede anclar directamente.
+      if (maxSlots === 1 && row.length === 1) {
+        const v = row[0].values[0];
+        board[String(heapPositions[0])] = cardLookup(v);
+      } else {
+        for (const b of row) pending.push(...b.values);
+      }
+      continue;
+    }
+
+    // Fila completa -> anclaje directo, izquierda a derecha
+    let posIdx = 0;
+    for (const block of row) {
+      for (const v of block.values) {
+        board[String(heapPositions[posIdx])] = cardLookup(v);
+        posIdx++;
+      }
+    }
+  }
+
+  return { board, pending };
+}
+
+// ────────────────────────────────────────────────────────────────
+// RESOLUCIÓN PROVISIONAL (solo para mostrar en pantalla)
+// ────────────────────────────────────────────────────────────────
+// A diferencia de resolveToBoard (que es estricta y solo ancla filas
+// 100% completas), esta función SIEMPRE asigna una posición visual
+// a cada bloque, aunque la fila no esté llena. Las cartas se centran
+// dentro de los slots disponibles de esa fila, en su orden lógico
+// izquierda->derecha. Esto es solo para que el jugador vea algo
+// mientras la base se completa — NO se debe usar para validar
+// nuevas jugadas (usar resolveToBoard para eso).
+function resolveProvisional(pyramid, cardLookup) {
+  const board = {};
+
+  for (let r = 0; r < pyramid.height; r++) {
+    const row = pyramid.rows[r];
+    if (row.length === 0) continue;
+
+    const maxSlots = pyramid.maxSlotsPerRow[r];
+    const filledSlots = row.reduce((sum, b) => sum + b.values.length, 0);
+    const heapPositions = getRowHeapPositions(pyramid.height, r);
+
+    // Centrar el grupo de bloques dentro de los slots disponibles
+    const startOffset = Math.floor((maxSlots - filledSlots) / 2);
+
+    let posIdx = startOffset;
+    for (const block of row) {
+      for (const v of block.values) {
+        const heapPos = heapPositions[posIdx];
+        if (heapPos !== undefined) board[String(heapPos)] = cardLookup(v);
+        posIdx++;
+      }
+    }
+  }
+
+  return board;
+}
+
+// ────────────────────────────────────────────────────────────────
+// LAYOUT VISUAL PROVISIONAL — para mostrar algo en pantalla incluso
+// antes de que una fila esté completamente anclada. Cada fila se
+// devuelve como una lista de celdas ordenadas de izquierda a
+// derecha (por el orden lógico actual de los bloques), cada una
+// con su valor y si esa fila ya está anclada definitivamente.
+//
+// Esto es solo para RENDER — la fuente de verdad de posiciones de
+// heap reales sigue siendo resolveToBoard, que se usa para guardar
+// en Firebase y para toda la lógica de juego.
+// ────────────────────────────────────────────────────────────────
+function resolveToVisualLayout(pyramid, cardLookup) {
+  const rows = [];
+  for (let r = 0; r < pyramid.height; r++) {
+    const row = pyramid.rows[r];
+    const maxSlots = pyramid.maxSlotsPerRow[r];
+    const filledSlots = row.reduce((sum, b) => sum + b.values.length, 0);
+    const anchored = filledSlots >= maxSlots;
+
+    const cells = [];
+    for (const block of row) {
+      for (const v of block.values) {
+        cells.push({ value: v, card: cardLookup(v), anchored });
+      }
+    }
+    rows.push({ cells, anchored, maxSlots });
+  }
+  return rows;
+}
+
+// ────────────────────────────────────────────────────────────────
+// API simplificada para uso externo: simula jugar una secuencia de
+// valores y devuelve el board final + qué falló (si algo falló).
+// ────────────────────────────────────────────────────────────────
+function buildPyramidFromSequence(height, sequence) {
+  const pyramid = createEmptyPyramid(height);
+  const results = [];
+  for (const value of sequence) {
+    const res = insertValue(pyramid, value);
+    results.push({ value, ok: res.ok });
+  }
+  const { board, pending } = resolveToBoard(pyramid, (v) => ({ number: v }));
+  return { pyramid, results, board, pending };
+}
+
+window.PyramidBlocks = {
+  createEmptyPyramid, insertValue, tryInsertInRow,
+  resolveToBoard, resolveProvisional, getRowHeapPositions,
+  buildPyramidFromSequence,
+};

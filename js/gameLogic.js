@@ -155,6 +155,14 @@ function findParentSlotBetween(board, height, row, value, filledSlots) {
       // consecutivas) para que exista UN slot de padre común.
       if (rightRowIdx !== leftRowIdx + 1) continue;
 
+      // Y además deben ser un par REAL de heap (compartir el mismo
+      // padre): los índices de fila 0-1, 2-3, 4-5... son pares
+      // válidos; un par como 1-2 NO comparte padre real, aunque sean
+      // columnas consecutivas. Sin esta verificación, una carta como
+      // 20 (flanqueada por 15 a la izquierda Y 54 a la derecha) podía
+      // "robar" el slot superior del par equivocado.
+      if (parent(left.pos) !== parent(right.pos)) continue;
+
       const upperIdx = Math.floor(leftRowIdx / 2);
       const upperPos = upperPositions[upperIdx];
 

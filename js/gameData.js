@@ -59,11 +59,11 @@ export const PERSONALITY_INFO = {
   Orderly:     "Al jugarse, si su padre o algún hijo ya colocado tiene un valor con diferencia exacta de ±1, otorga +1 punto (potencia 2)",
   Curious:     "Al jugarse, se muestran a todos las 2 cartas de arriba del mazo (sin tomarlas). Luego vuelven al fondo (potencia 3)",
   Familiar:    "Si 2 Familiar se juegan seguidas, se activa un pase: todos los que tengan una Familiar en mano eligen cuál pasar a su vecino de la izquierda, simultáneamente (potencia 4)",
-  Shy:         "Al jugarse no se coloca de inmediato: se apila (visible a todos) y espera. Se libera en orden inverso cuando alguien juegue una carta normal (potencia 5)",
+  Shy:         "Al jugarse no se coloca de inmediato: se apila (visible a todos) y espera. Se libera en orden inverso cuando alguien juegue una carta normal (potencia 5). Solo en BST por ahora — en Pirámide se juega como Common.",
   Joker:       "Copia la habilidad de la última carta jugada antes de ella. Si esa carta era Common, no pasa nada (potencia 6)",
   Sacrifice:   "Al jugarse, descarta otra carta de tu mano (no Common ni Sacrificio) y copia su habilidad (potencia 7)",
-  Hyperactive: "Opcionalmente puede jugarse como si fuera ANTES que la última carta jugada, reubicándola (potencia 8)",
-  Demolisher:  "Al jugarse, elimina cualquier carta ya colocada en el tablero. La posición queda vacía y debe rellenarse respetando padre e hijos (potencia 9, la más fuerte)",
+  Hyperactive: "Opcionalmente puede jugarse como si fuera ANTES que la última carta jugada, reubicándola (potencia 8). Solo en BST por ahora — en Pirámide se juega como Common.",
+  Demolisher:  "Al jugarse, elimina cualquier carta ya colocada en el tablero. La posición queda vacía y debe rellenarse respetando padre e hijos (potencia 9, la más fuerte). Solo en BST por ahora — en Pirámide se juega como Common.",
 };
 
 export const LEVELS = [
