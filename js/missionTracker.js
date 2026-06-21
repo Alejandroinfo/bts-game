@@ -73,7 +73,9 @@ function trackSignalUsed(stats, playerId, signalType) {
   const current = stats.signalsUsedThisLevel[playerId] || emptySignalCounter();
   const updated = { ...current, [signalType]: (current[signalType] || 0) + 1 };
   return {
-    [`signalsUsedThisLevel/${playerId}`]: updated,
+    signalsUsedThisLevel: Object.assign({}, stats.signalsUsedThisLevel, {
+      [playerId]: updated,
+    }),
     groupSignalsThisLevel: (stats.groupSignalsThisLevel || 0) + 1,
   };
 }
@@ -81,10 +83,14 @@ function trackSignalUsed(stats, playerId, signalType) {
 // Llamar cada vez que se gasta puntos en una habilidad (drawCard, gainLife, redrawHand)
 function trackPointsSpent(stats, playerId, ability) {
   const updates = {
-    [`spentPointsThisLevel/${playerId}`]: true,
+    spentPointsThisLevel: Object.assign({}, stats.spentPointsThisLevel, {
+      [playerId]: true,
+    }),
   };
   if (ability === "redrawHand") {
-    updates[`usedRedrawThisLevel/${playerId}`] = true;
+    updates.usedRedrawThisLevel = Object.assign({}, stats.usedRedrawThisLevel, {
+      [playerId]: true,
+    });
   }
   return updates;
 }
@@ -96,7 +102,14 @@ function trackLevelEnd(stats, players, currentLevel, livesLost) {
   for (const [pid, p] of Object.entries(players)) {
     pointsSnapshot[pid] = p.points;
   }
-  updates[`pointsAtCheckpoints/${currentLevel}`] = pointsSnapshot;
+  // IMPORTANTE: esto se mezcla luego con Object.assign sobre el objeto
+  // `stats` completo (no es un path de Firebase con update()), así que
+  // debe ser un objeto anidado real en JS, nunca una clave con "/".
+  updates.pointsAtCheckpoints = Object.assign(
+    {},
+    stats.pointsAtCheckpoints,
+    { [currentLevel]: pointsSnapshot }
+  );
 
   if (livesLost === 0) {
     const noLivesLost = [...(stats.noLivesLostLevels || []), currentLevel];
