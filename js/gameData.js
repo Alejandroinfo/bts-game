@@ -59,22 +59,22 @@ export const PERSONALITY_INFO = {
   Orderly:     "Al jugarse, si su padre o algún hijo ya colocado tiene un valor con diferencia exacta de ±1, otorga +1 punto (potencia 2)",
   Curious:     "Al jugarse, se muestran a todos las 2 cartas de arriba del mazo (sin tomarlas). Luego vuelven al fondo (potencia 3)",
   Familiar:    "Si 2 Familiar se juegan seguidas, se activa un pase: todos los que tengan una Familiar en mano eligen cuál pasar a su vecino de la izquierda, simultáneamente (potencia 4)",
-  Shy:         "Al jugarse no se coloca de inmediato: se apila (visible a todos) y espera. Se libera en orden inverso cuando alguien juegue una carta normal (potencia 5). Solo en BST por ahora — en Pirámide se juega como Common.",
+  Shy:         "Al jugarse no se coloca de inmediato: se apila (visible a todos) y espera. Se libera en orden inverso cuando alguien juegue una carta normal (potencia 5). Funciona en BST y Pirámide.",
   Joker:       "Copia la habilidad de la última carta jugada antes de ella. Si esa carta era Common, no pasa nada (potencia 6)",
   Sacrifice:   "Al jugarse, descarta otra carta de tu mano (no Common ni Sacrificio) y copia su habilidad (potencia 7)",
-  Hyperactive: "Opcionalmente puede jugarse como si fuera ANTES que la última carta jugada, reubicándola (potencia 8). Solo en BST por ahora — en Pirámide se juega como Common.",
+  Hyperactive: "Opcionalmente puede jugarse como si fuera ANTES que la última carta jugada, reubicándola (potencia 8). Funciona en BST y Pirámide.",
   Demolisher:  "Al jugarse, elimina cualquier carta ya colocada en el tablero. La posición queda vacía y debe rellenarse respetando padre e hijos (potencia 9, la más fuerte). Solo en BST por ahora — en Pirámide se juega como Common.",
 };
 
 export const LEVELS = [
-  { level: 1, type: "BST",     height: 3, nodes: 7  },
-  { level: 2, type: "Pyramid", height: 3, nodes: 7  },
-  { level: 3, type: "BST",     height: 4, nodes: 15 },
-  { level: 4, type: "Pyramid", height: 4, nodes: 15 },
-  { level: 5, type: "BST",     height: 5, nodes: 31 },
-  { level: 6, type: "Pyramid", height: 5, nodes: 31 },
-  { level: 7, type: "BST",     height: 6, nodes: 63 },
-  { level: 8, type: "Pyramid", height: 6, nodes: 63 },
+  { level: 1, type: "BST",     height: 3, nodes: 7,  timeLimitSec: 180 },
+  { level: 2, type: "Pyramid", height: 3, nodes: 7,  timeLimitSec: 180 },
+  { level: 3, type: "BST",     height: 4, nodes: 15, timeLimitSec: 360 },
+  { level: 4, type: "Pyramid", height: 4, nodes: 15, timeLimitSec: 360 },
+  { level: 5, type: "BST",     height: 5, nodes: 31, timeLimitSec: 540 },
+  { level: 6, type: "Pyramid", height: 5, nodes: 31, timeLimitSec: 540 },
+  { level: 7, type: "BST",     height: 6, nodes: 63, timeLimitSec: 720 },
+  { level: 8, type: "Pyramid", height: 6, nodes: 63, timeLimitSec: 720 },
 ];
 
 // ── Tutorial: 3 fases x 2 niveles (BST + Pirámide), siempre tamaño 3 ──────
@@ -188,4 +188,5 @@ window.GameData = {
   buildDeck, PERSONALITY_INFO, LEVELS, cardsPerPlayer,
   DIFFICULTY, SIGNALS_UNLOCKABLE, MISSIONS, shuffle, buildMissionPool,
   TUTORIAL_LEVELS, TUTORIAL_PHASE_INFO, TUTORIAL_DIFFICULTY, personalityPower,
+  DIGIT_TO_PERSONALITY, DIGIT_TO_COLOR,
 };

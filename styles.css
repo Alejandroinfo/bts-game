@@ -95,6 +95,11 @@ input[type="text"], select {
 }
 .mission-timer.urgent { background: #922B21; animation: blink-urgent 0.8s infinite; }
 @keyframes blink-urgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.level-timer {
+  font-weight: bold; font-size: 13px; padding: 2px 10px;
+  border-radius: 20px; background: #1A5276; color: #fff;
+}
+.level-timer.urgent { background: #922B21; animation: blink-urgent 0.8s infinite; }
 .phase-pill {
   background: #555; padding: 2px 10px; border-radius: 20px; font-size: 11px;
 }
@@ -375,3 +380,34 @@ input[type="text"], select {
   .panel { width: 92vw; padding: 28px; }
   .panel-wide { width: 92vw; }
 }
+
+/* ── Guía del jugador ── */
+.guide-panel { max-width: 720px; }
+.guide-title { font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+.guide-subtitle { font-size: 12px; color: #999; margin-bottom: 20px; }
+.guide-section { margin-bottom: 24px; }
+.guide-section-title {
+  font-size: 14px; font-weight: bold; color: #AED6F1;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 12px;
+}
+.guide-personality-table { display: flex; flex-direction: column; gap: 6px; }
+.guide-personality-row {
+  display: flex; align-items: stretch; gap: 0;
+  border-radius: 8px; overflow: hidden;
+}
+.guide-pers-swatch {
+  flex-shrink: 0; width: 44px; display: flex; align-items: center; justify-content: center;
+}
+.guide-pers-digit { font-size: 20px; font-weight: bold; }
+.guide-pers-text {
+  flex: 1; background: #1f1f3a; padding: 8px 12px;
+}
+.guide-pers-name { font-size: 13px; font-weight: bold; color: #fff; }
+.guide-pers-colorname { font-weight: normal; color: #999; font-size: 11px; }
+.guide-pers-desc { font-size: 12px; color: #ccc; margin-top: 2px; line-height: 1.4; }
+.guide-rule-block { margin-bottom: 14px; }
+.guide-rule-name { font-size: 13px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+.guide-rule-text { font-size: 12px; color: #ccc; line-height: 1.5; }
+.guide-signal-row { font-size: 12px; color: #ccc; margin-bottom: 6px; line-height: 1.5; }
+.guide-signal-row b { color: #fff; }

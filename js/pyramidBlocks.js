@@ -411,8 +411,206 @@ function buildPyramidFromSequence(height, sequence) {
   return { pyramid, results, board, pending };
 }
 
+// ────────────────────────────────────────────────────────────────
+// SERIALIZACIÓN SEGURA PARA FIREBASE
+// ────────────────────────────────────────────────────────────────
+// Firebase Realtime Database ELIMINA arrays vacíos anidados al
+// guardarlos (los trata como null/ausentes). La estructura interna
+// de `pyramid.rows` es un array de arrays, que frecuentemente
+// contiene filas vacías ([]) — esto corrompe el estado al guardarlo
+// y volver a leerlo. Estas funciones convierten la estructura a una
+// forma 100% segura (solo objetos con claves string, nunca arrays
+// vacíos) antes de escribir a Firebase, y la reconstruyen al leer.
+
+function serializePyramidForFirebase(pyramid) {
+  const rowsObj = {};
+  for (let r = 0; r < pyramid.rows.length; r++) {
+    const row = pyramid.rows[r];
+    if (row.length === 0) {
+      rowsObj[String(r)] = { _empty: true };
+    } else {
+      const blocksObj = {};
+      for (let i = 0; i < row.length; i++) {
+        blocksObj[String(i)] = row[i];
+      }
+      rowsObj[String(r)] = { _empty: false, blocks: blocksObj, count: row.length };
+    }
+  }
+  return {
+    rows: rowsObj,
+    height: pyramid.height,
+    maxSlotsPerRow: pyramid.maxSlotsPerRow,
+  };
+}
+
+function deserializePyramidFromFirebase(serialized) {
+  if (!serialized || !serialized.rows) {
+    // Estado nunca guardado todavía -> pirámide vacía nueva
+    return null;
+  }
+  const height = serialized.height;
+  const rows = [];
+  for (let r = 0; r < height; r++) {
+    const rowData = serialized.rows[String(r)];
+    if (!rowData || rowData._empty) {
+      rows.push([]);
+    } else {
+      const count = rowData.count || 0;
+      const row = [];
+      for (let i = 0; i < count; i++) {
+        const block = rowData.blocks[String(i)];
+        if (block) row.push(block);
+      }
+      rows.push(row);
+    }
+  }
+  return { rows, height, maxSlotsPerRow: serialized.maxSlotsPerRow };
+}
+
+// ────────────────────────────────────────────────────────────────
+// ORDERLY (Pirámide) — Calcula, SIN MUTAR el estado, cuáles son los
+// valores vecinos lógicos relevantes de `value` si se insertara
+// ahora en la base de la pirámide. Devuelve un array de números
+// (puede tener 0, 1 o 2 elementos):
+//   - El bloque inmediatamente a la izquierda y/o derecha de donde
+//     value caería en la secuencia de la base (vecino lateral).
+//   - Si value generaría una fusión (Caso 4), también se incluye el
+//     valor que sería su HIJO directo en la fila de arriba, si esa
+//     posición ya tiene un bloque colocado ahí (vecino por fusión
+//     ya existente, poco común pero posible si ese hijo se jugó
+//     "rebotando" antes de que el padre se confirmara).
+//
+// Esta función es de solo lectura — se usa para el bono de puntos,
+// nunca para decidir si la jugada es válida (eso lo decide
+// tryInsertInRow/insertValue, que sigue siendo la única fuente de
+// verdad sobre si la carta cabe).
+// ────────────────────────────────────────────────────────────────
+// Cuenta cuántas cartas en total ya están colocadas en TODAS las
+// filas (sin importar si están ancladas o solo flotando). Útil para
+// el límite dinámico de la pila de Shy, que necesita saber cuántos
+// espacios totales quedan vacíos en la pirámide completa.
+function countFilledCards(pyramid) {
+  let total = 0;
+  for (const row of pyramid.rows) {
+    for (const block of row) total += block.values.length;
+  }
+  return total;
+}
+
+function getOrderlyNeighbors(pyramid, value) {
+  const neighbors = [];
+  const row = pyramid.rows[0]; // Orderly solo mira la fila base, donde se insertan las cartas nuevas
+
+  if (!row || row.length === 0) return neighbors;
+
+  const minVal = rowMinValue(row);
+  const maxVal = rowMaxValue(row);
+
+  if (value < minVal) {
+    neighbors.push(row[0].values[0]); // el que era el extremo izquierdo
+    return neighbors;
+  }
+  if (value > maxVal) {
+    const last = row[row.length - 1];
+    neighbors.push(last.values[last.values.length - 1]); // extremo derecho anterior
+    return neighbors;
+  }
+
+  // Buscar entre qué dos bloques caería (vecino lateral en ambos lados)
+  for (let i = 0; i < row.length - 1; i++) {
+    const left = row[i];
+    const right = row[i + 1];
+    const leftMax = left.values[left.values.length - 1];
+    const rightMin = right.values[0];
+    if (value > leftMax && value < rightMin) {
+      neighbors.push(leftMax, rightMin);
+      break;
+    }
+  }
+
+  return neighbors;
+}
+
+// ────────────────────────────────────────────────────────────────
+// SHY (Pirámide) — Libera la pila completa en orden LIFO, igual que
+// la versión de BST (ver gameLogic.js resolveShyStack), pero usando
+// insertValue del sistema de bloques en vez de un heap fijo. Cada
+// carta liberada se intenta insertar en el momento de liberarse; si
+// para entonces ya no tiene espacio válido, se descarta.
+//
+// stack = [{ playerId, cardId, card }, ...], el último elemento es
+// el que se libera PRIMERO (LIFO).
+// Devuelve { placements: [{ card, playerId, cardId }], discarded, finalPyramid }.
+// No muta `pyramid` — trabaja sobre una copia interna.
+// ────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+// HYPERACTIVE (Pirámide) — Simula que la carta se jugó ANTES que la
+// última carta NO-Hyperactiva colocada, usando un SNAPSHOT del
+// estado de bloques justo antes de aplicar esa última jugada normal
+// (en vez de intentar "deshacer" una fusión, lo cual no es posible
+// sin guardar más historial — ver la explicación completa en la
+// guía técnica).
+//
+// Soporta CADENAS de Hyperactive consecutivas: si se juegan varias
+// Hyperactive una tras otra sin que nadie juegue una carta normal de
+// por medio, cada nueva Hyperactiva se inserta ANTES que todas las
+// anteriores de la cadena, simulando el orden completo invertido.
+// Ejemplo: 15(normal), 20(hyper), 40(hyper) se simula como si el
+// orden real hubiera sido 40, 20, 15.
+//
+// stateBeforeLast: el pyramidState justo antes de la última carta
+//   NO-Hyperactiva jugada (se mantiene FIJO mientras se acumulen
+//   Hyperactive consecutivas — nunca avanza hasta que se juegue una
+//   carta normal de nuevo).
+// hyperValue: el número de la carta Hyperactiva que se está jugando ahora.
+// chain: array de valores Hyperactive ya jugados en esta cadena, en
+//   el orden en que se jugaron (el más antiguo primero). Vacío si
+//   esta es la primera Hyperactiva de la cadena.
+// lastNonHyperValue: el número de la última carta NO-Hyperactiva
+//   jugada (el "ancla" final de la cadena).
+//
+// Devuelve null si no es válido, o { finalPyramid } si sí lo es.
+// No muta ningún estado de entrada.
+// ────────────────────────────────────────────────────────────────
+function tryHyperactiveReorderPyramid(stateBeforeLast, hyperValue, chain, lastNonHyperValue) {
+  const working = JSON.parse(JSON.stringify(stateBeforeLast));
+
+  // Orden de inserción: la Hyperactiva nueva primero, luego la
+  // cadena existente (que YA está en orden "más reciente primero",
+  // ver cómo se construye en gameRoom.js: [card.number, ...existingChain]),
+  // y al final el ancla no-Hyperactiva.
+  const insertionOrder = [hyperValue, ...chain, lastNonHyperValue];
+
+  for (const value of insertionOrder) {
+    const result = insertValue(working, value);
+    if (!result.ok) return null;
+  }
+
+  return { finalPyramid: working };
+}
+
+function resolveShyStackPyramid(pyramid, stack) {
+  const placements = [];
+  const discarded = [];
+  let workingPyramid = JSON.parse(JSON.stringify(pyramid));
+
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const entry = stack[i];
+    const result = insertValue(workingPyramid, entry.card.number);
+    if (!result.ok) {
+      discarded.push(entry);
+    } else {
+      placements.push({ card: entry.card, playerId: entry.playerId, cardId: entry.cardId });
+    }
+  }
+
+  return { placements, discarded, finalPyramid: workingPyramid };
+}
+
 window.PyramidBlocks = {
   createEmptyPyramid, insertValue, tryInsertInRow,
   resolveToBoard, resolveProvisional, getRowHeapPositions,
-  buildPyramidFromSequence,
+  buildPyramidFromSequence, getOrderlyNeighbors, countFilledCards,
+  resolveShyStackPyramid, tryHyperactiveReorderPyramid,
+  serializePyramidForFirebase, deserializePyramidFromFirebase,
 };
