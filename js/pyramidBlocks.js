@@ -69,103 +69,28 @@ function tryInsertInRow(pyramid, rowIndex, value) {
   const maxSlots = pyramid.maxSlotsPerRow[rowIndex];
   const currentSlots = row.reduce((sum, b) => sum + b.values.length, 0);
 
-  // Caso 1: fila vacía -> nuevo bloque suelto, sin anchor todavía
   if (row.length === 0) {
-    row.push({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
-    return { ok: true, childValue: null };
+    const block = { id: newBlockId(), values: [value], childValue: null, childBlockId: null };
+    row.push(block);
+    return { ok: true, childValue: null, parentBlockId: null };
   }
 
   const minVal = rowMinValue(row);
   const maxVal = rowMaxValue(row);
 
-  // Caso 2: menor que todos -> nuevo bloque suelto a la izquierda,
-  // SI hay espacio (no se ha llenado el máximo de columnas lógicas)
   if (value < minVal) {
-    if (currentSlots >= maxSlots) return { ok: false }; // sin espacio físico
-    row.unshift({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
-    return { ok: true, childValue: null };
+    if (currentSlots >= maxSlots) return { ok: false };
+    const block = { id: newBlockId(), values: [value], childValue: null, childBlockId: null };
+    row.unshift(block);
+    return { ok: true, childValue: null, parentBlockId: null };
   }
 
-  // Caso 3: mayor que todos -> simétrico a la derecha
   if (value > maxVal) {
     if (currentSlots >= maxSlots) return { ok: false };
-    row.push({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
-    return { ok: true, childValue: null };
+    const block = { id: newBlockId(), values: [value], childValue: null, childBlockId: null };
+    row.push(block);
+    return { ok: true, childValue: null, parentBlockId: null };
   }
-
-  // Caso 4: cae entre dos bloques ADYACENTES en la secuencia actual.
-  //
-  // REGLA DE "PAREJA POTENCIAL": lo que importa es el ÍNDICE DE
-  // POSICIÓN ACUMULADO (contando CARTAS, no bloques) del lado
-  // derecho del bloque izquierdo y el lado izquierdo del bloque
-  // derecho. Esos dos índices deben ser un par válido de heap —es
-  // decir, el índice acumulado del valor de la derecha de `left`
-  // debe ser PAR (posición 0,2,4...) para que junto con el
-  // siguiente (impar) formen una pareja real (0,1),(2,3)...
-  //
-  // Un bloque ya fusionado ocupa varias cartas, así que el índice
-  // del ARRAY no equivale al índice de heap — hay que acumular el
-  // tamaño de todos los bloques anteriores.
-  //
-  // Esta regla aplica SIEMPRE de la misma forma, esté la fila llena
-  // o no — no hay distinción entre "fila abierta" y "fila cerrada".
-  // El efecto dominó (confirmado por el diseño del juego) surge
-  // naturalmente de esto: cuando un bloque ya se fusionó con su
-  // pareja válida, el índice acumulado de los bloques vecinos
-  // cambia, y el bloque que quedó "suelto" puede o no compartir un
-  // índice válido con quien antes era su otro vecino.
-  let accIdx = 0;
-  for (let i = 0; i < row.length - 1; i++) {
-    const left = row[i];
-    const right = row[i + 1];
-    const leftEndIdx = accIdx + left.values.length - 1; // índice acumulado del último valor de left
-    accIdx += left.values.length;
-    const rightStartIdx = accIdx; // índice acumulado del primer valor de right
-
-    if (leftEndIdx % 2 !== 0) continue; // solo pares (0,1),(2,3)... son válidos
-
-    const leftMax = left.values[left.values.length - 1];
-    const rightMin = right.values[0];
-
-    if (value > leftMax && value < rightMin) {
-      if (left.childValue !== null || right.childValue !== null) {
-        continue; // el slot de hijo ya está ocupado, probar el siguiente par
-      }
-
-      // Fusionar left y right en un solo bloque, value sube como
-      // hijo lógico de ese bloque combinado.
-      const merged = {
-        id: newBlockId(),
-        values: [...left.values, ...right.values],
-        childValue: value,
-        childBlockId: null, // se asigna cuando el hijo se inserte arriba
-      };
-      row.splice(i, 2, merged);
-      return { ok: true, childValue: value, parentBlockId: merged.id };
-    }
-  }
-
-  return { ok: false }; // cae en una zona ambigua sin slot válido
-}
-
-// Inserta un valor en la pirámide completa, empezando por la base
-// (fila 0) y subiendo recursivamente si genera hijos.
-// Devuelve { ok: bool }.
-function deepCloneRows(rows) {
-  return rows.map(row => row.map(block => ({ ...block, values: [...block.values] })));
-}
-
-// Variante de tryInsertInRow que SOLO intenta el Caso 4 (fusión).
-// Se usa cuando un valor "rebota" hacia una fila superior porque la
-// base (u otra fila inferior) lo rechazó — en ese caso, el valor
-// JAMÁS puede convertirse en "primera carta" o "extremo" de la fila
-// superior (eso solo es legítimo para valores que llegan como hijo
-// real de una fusión, nunca para un valor que viene directamente
-// del jugador intentando una fila a la que no le corresponde entrar
-// como hoja).
-function tryFusionOnlyInRow(pyramid, rowIndex, value) {
-  const row = pyramid.rows[rowIndex];
-  if (row.length < 2) return { ok: false }; // necesita al menos 2 bloques para fusionar
 
   let accIdx = 0;
   for (let i = 0; i < row.length - 1; i++) {
@@ -186,12 +111,66 @@ function tryFusionOnlyInRow(pyramid, rowIndex, value) {
         id: newBlockId(),
         values: [...left.values, ...right.values],
         childValue: value,
-        childBlockId: null,
+        childBlockId: null
       };
+
       row.splice(i, 2, merged);
+
       return { ok: true, childValue: value, parentBlockId: merged.id };
     }
   }
+
+  return { ok: false };
+}
+
+
+// Inserta un valor en la pirámide completa, empezando por la base
+// (fila 0) y subiendo recursivamente si genera hijos.
+// Devuelve { ok: bool }.
+function deepCloneRows(rows) {
+  return rows.map(row => row.map(block => ({ ...block, values: [...block.values] })));
+}
+
+// Variante de tryInsertInRow que SOLO intenta el Caso 4 (fusión).
+// Se usa cuando un valor "rebota" hacia una fila superior porque la
+// base (u otra fila inferior) lo rechazó — en ese caso, el valor
+// JAMÁS puede convertirse en "primera carta" o "extremo" de la fila
+// superior (eso solo es legítimo para valores que llegan como hijo
+// real de una fusión, nunca para un valor que viene directamente
+// del jugador intentando una fila a la que no le corresponde entrar
+// como hoja).
+function tryFusionOnlyInRow(pyramid, rowIndex, value) {
+  const row = pyramid.rows[rowIndex];
+  if (row.length < 2) return { ok: false };
+
+  let accIdx = 0;
+  for (let i = 0; i < row.length - 1; i++) {
+    const left = row[i];
+    const right = row[i + 1];
+    const leftEndIdx = accIdx + left.values.length - 1;
+    accIdx += left.values.length;
+
+    if (leftEndIdx % 2 !== 0) continue;
+
+    const leftMax = left.values[left.values.length - 1];
+    const rightMin = right.values[0];
+
+    if (value > leftMax && value < rightMin) {
+      if (left.childValue !== null || right.childValue !== null) continue;
+
+      const merged = {
+        id: newBlockId(),
+        values: [...left.values, ...right.values],
+        childValue: value,
+        childBlockId: null
+      };
+
+      row.splice(i, 2, merged);
+
+      return { ok: true, childValue: value, parentBlockId: merged.id };
+    }
+  }
+
   return { ok: false };
 }
 
@@ -233,41 +212,50 @@ function insertValue(pyramid, value) {
 
 // Ejecuta la cascada normal (hoja, extremo, o fusión) empezando en
 // `startRow` con `value`. Devuelve true/false. Muta `pyramid` in-place.
-function tryNormalCascade(pyramid, startRow, value) {
+function tryNormalCascade(pyramid, startRow, value, parentBlockId = null) {
   let currentRow = startRow;
   let currentValue = value;
-  let parentBlockId = null;
+  let currentParent = parentBlockId;
 
   while (currentRow < pyramid.height) {
     const result = tryInsertInRow(pyramid, currentRow, currentValue);
     if (!result.ok) return false;
 
-    if (parentBlockId !== null) {
+    if (currentParent !== null) {
       const belowRow = pyramid.rows[currentRow - 1];
-      const parentBlock = belowRow.find(b => b.id === parentBlockId);
-      if (parentBlock) {
-        const childBlock = pyramid.rows[currentRow].find(b =>
-          b.values.includes(currentValue) || b.childValue === currentValue
-        );
-        if (childBlock) parentBlock.childBlockId = childBlock.id;
+      const parentBlock = belowRow.find(b => b.id === currentParent);
+
+      const childBlock = pyramid.rows[currentRow].find(b =>
+        b.values.includes(currentValue) ||
+        b.childValue === currentValue
+      );
+
+      if (parentBlock && childBlock) {
+        parentBlock.childBlockId = childBlock.id;
       }
     }
 
     if (result.childValue === null) return true;
 
-    parentBlockId = result.parentBlockId || null;
+    currentParent = result.parentBlockId;
     currentValue = result.childValue;
     currentRow++;
   }
+
   return true;
 }
 
 // Continúa la cascada hacia arriba después de que un rebote ya
 // generó un hijo en `startRow` (resultado `firstResult`).
 function tryNormalCascadeFromResult(pyramid, startRow, firstResult) {
-  if (firstResult.childValue === null) return true; // no debería pasar (fusión siempre genera hijo)
-  return tryNormalCascade(pyramid, startRow + 1, firstResult.childValue);
+  return tryNormalCascade(
+    pyramid,
+    startRow + 1,
+    firstResult.childValue,
+    firstResult.parentBlockId
+  );
 }
+
 
 // ────────────────────────────────────────────────────────────────
 // RESOLUCIÓN DE POSICIONES DE HEAP
