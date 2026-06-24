@@ -2061,6 +2061,17 @@ function renderBoardTab(room, levelCfg, me, isHost) {
       '<div class="banner-title">' + (room.result === "victory" ? "¡Victoria!" : "Fin del juego") + '</div>' +
       '<div class="banner-sub">' + (room.result === "victory" ? "Completaron los 8 niveles" : "El grupo se quedó sin vidas") + '</div>';
     tab.appendChild(banner);
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.cssText = "display:flex; gap:12px; justify-content:center; margin-top:16px;";
+
+    const btnHome = document.createElement("button");
+    btnHome.className = "btn";
+    btnHome.textContent = "🏠 Volver al inicio";
+    btnHome.onclick = function() { location.reload(); };
+    btnContainer.appendChild(btnHome);
+
+    tab.appendChild(btnContainer);
   }
 
   else if (room.phase === "missionSelect") {

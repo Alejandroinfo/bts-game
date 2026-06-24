@@ -87,6 +87,11 @@ input[type="text"], select {
   background: #048A81; padding: 2px 10px; border-radius: 20px; font-size: 12px;
 }
 .topbar-info { font-size: 12px; color: #ccc; }
+.topbar-home-btn {
+  background: none; border: none; cursor: pointer; font-size: 16px;
+  padding: 4px 8px; border-radius: 6px; opacity: 0.6; transition: opacity 0.2s;
+}
+.topbar-home-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .lives-display { font-weight: bold; font-size: 14px; }
 .mission-timer {

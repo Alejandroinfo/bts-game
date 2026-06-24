@@ -69,60 +69,76 @@ function tryInsertInRow(pyramid, rowIndex, value) {
   const maxSlots = pyramid.maxSlotsPerRow[rowIndex];
   const currentSlots = row.reduce((sum, b) => sum + b.values.length, 0);
 
+  // Caso 1: fila vacía -> nuevo bloque suelto, sin anchor todavía
   if (row.length === 0) {
-    const block = { id: newBlockId(), values: [value], childValue: null, childBlockId: null };
-    row.push(block);
-    return { ok: true, childValue: null, parentBlockId: null };
+    row.push({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
+    return { ok: true, childValue: null };
   }
 
   const minVal = rowMinValue(row);
   const maxVal = rowMaxValue(row);
 
+  // Caso 2: menor que todos -> nuevo bloque suelto a la izquierda
   if (value < minVal) {
-    if (currentSlots >= maxSlots) return { ok: false };
-    const block = { id: newBlockId(), values: [value], childValue: null, childBlockId: null };
-    row.unshift(block);
-    return { ok: true, childValue: null, parentBlockId: null };
+    if (currentSlots >= maxSlots) {
+      console.warn("[PyramidDebug] row" + rowIndex + ": valor " + value + " < min(" + minVal + ") pero fila llena (" + currentSlots + "/" + maxSlots + ")");
+      return { ok: false };
+    }
+    row.unshift({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
+    return { ok: true, childValue: null };
   }
 
+  // Caso 3: mayor que todos -> simétrico a la derecha
   if (value > maxVal) {
-    if (currentSlots >= maxSlots) return { ok: false };
-    const block = { id: newBlockId(), values: [value], childValue: null, childBlockId: null };
-    row.push(block);
-    return { ok: true, childValue: null, parentBlockId: null };
+    if (currentSlots >= maxSlots) {
+      console.warn("[PyramidDebug] row" + rowIndex + ": valor " + value + " > max(" + maxVal + ") pero fila llena (" + currentSlots + "/" + maxSlots + ")");
+      return { ok: false };
+    }
+    row.push({ id: newBlockId(), values: [value], childValue: null, childBlockId: null });
+    return { ok: true, childValue: null };
   }
 
+  // Caso 4: cae entre dos bloques ADYACENTES en la secuencia actual.
   let accIdx = 0;
+  const _debugReasons = [];
   for (let i = 0; i < row.length - 1; i++) {
     const left = row[i];
     const right = row[i + 1];
     const leftEndIdx = accIdx + left.values.length - 1;
     accIdx += left.values.length;
 
-    if (leftEndIdx % 2 !== 0) continue;
+    if (leftEndIdx % 2 !== 0) {
+      _debugReasons.push("par(" + i + "," + (i+1) + ") leftEndIdx=" + leftEndIdx + " impar, skip");
+      continue;
+    }
 
     const leftMax = left.values[left.values.length - 1];
     const rightMin = right.values[0];
 
     if (value > leftMax && value < rightMin) {
-      if (left.childValue !== null || right.childValue !== null) continue;
+      if (left.childValue !== null || right.childValue !== null) {
+        _debugReasons.push("par(" + i + "," + (i+1) + ") val " + leftMax + "<" + value + "<" + rightMin + " pero childValue ya ocupado (L:" + left.childValue + " R:" + right.childValue + ")");
+        continue;
+      }
 
       const merged = {
         id: newBlockId(),
         values: [...left.values, ...right.values],
         childValue: value,
-        childBlockId: null
+        childBlockId: null,
       };
-
       row.splice(i, 2, merged);
-
       return { ok: true, childValue: value, parentBlockId: merged.id };
+    } else {
+      _debugReasons.push("par(" + i + "," + (i+1) + ") leftEndIdx=" + leftEndIdx + " val " + value + " NO entre " + leftMax + " y " + rightMin);
     }
   }
 
+  console.warn("[PyramidDebug] row" + rowIndex + ": valor " + value + " no encontró slot. " +
+    "Bloques: [" + row.map(function(b) { return b.values.join(","); }).join("] [") + "] " +
+    "Razones: " + _debugReasons.join("; "));
   return { ok: false };
 }
-
 
 // Inserta un valor en la pirámide completa, empezando por la base
 // (fila 0) y subiendo recursivamente si genera hijos.
@@ -141,7 +157,7 @@ function deepCloneRows(rows) {
 // como hoja).
 function tryFusionOnlyInRow(pyramid, rowIndex, value) {
   const row = pyramid.rows[rowIndex];
-  if (row.length < 2) return { ok: false };
+  if (row.length < 2) return { ok: false }; // necesita al menos 2 bloques para fusionar
 
   let accIdx = 0;
   for (let i = 0; i < row.length - 1; i++) {
@@ -162,15 +178,12 @@ function tryFusionOnlyInRow(pyramid, rowIndex, value) {
         id: newBlockId(),
         values: [...left.values, ...right.values],
         childValue: value,
-        childBlockId: null
+        childBlockId: null,
       };
-
       row.splice(i, 2, merged);
-
       return { ok: true, childValue: value, parentBlockId: merged.id };
     }
   }
-
   return { ok: false };
 }
 
@@ -212,50 +225,41 @@ function insertValue(pyramid, value) {
 
 // Ejecuta la cascada normal (hoja, extremo, o fusión) empezando en
 // `startRow` con `value`. Devuelve true/false. Muta `pyramid` in-place.
-function tryNormalCascade(pyramid, startRow, value, parentBlockId = null) {
+function tryNormalCascade(pyramid, startRow, value) {
   let currentRow = startRow;
   let currentValue = value;
-  let currentParent = parentBlockId;
+  let parentBlockId = null;
 
   while (currentRow < pyramid.height) {
     const result = tryInsertInRow(pyramid, currentRow, currentValue);
     if (!result.ok) return false;
 
-    if (currentParent !== null) {
+    if (parentBlockId !== null) {
       const belowRow = pyramid.rows[currentRow - 1];
-      const parentBlock = belowRow.find(b => b.id === currentParent);
-
-      const childBlock = pyramid.rows[currentRow].find(b =>
-        b.values.includes(currentValue) ||
-        b.childValue === currentValue
-      );
-
-      if (parentBlock && childBlock) {
-        parentBlock.childBlockId = childBlock.id;
+      const parentBlock = belowRow.find(b => b.id === parentBlockId);
+      if (parentBlock) {
+        const childBlock = pyramid.rows[currentRow].find(b =>
+          b.values.includes(currentValue) || b.childValue === currentValue
+        );
+        if (childBlock) parentBlock.childBlockId = childBlock.id;
       }
     }
 
     if (result.childValue === null) return true;
 
-    currentParent = result.parentBlockId;
+    parentBlockId = result.parentBlockId || null;
     currentValue = result.childValue;
     currentRow++;
   }
-
   return true;
 }
 
 // Continúa la cascada hacia arriba después de que un rebote ya
 // generó un hijo en `startRow` (resultado `firstResult`).
 function tryNormalCascadeFromResult(pyramid, startRow, firstResult) {
-  return tryNormalCascade(
-    pyramid,
-    startRow + 1,
-    firstResult.childValue,
-    firstResult.parentBlockId
-  );
+  if (firstResult.childValue === null) return true; // no debería pasar (fusión siempre genera hijo)
+  return tryNormalCascade(pyramid, startRow + 1, firstResult.childValue);
 }
-
 
 // ────────────────────────────────────────────────────────────────
 // RESOLUCIÓN DE POSICIONES DE HEAP
@@ -419,7 +423,22 @@ function serializePyramidForFirebase(pyramid) {
     } else {
       const blocksObj = {};
       for (let i = 0; i < row.length; i++) {
-        blocksObj[String(i)] = row[i];
+        // Convertir el array `values` a un objeto con claves string,
+        // porque Firebase Realtime Database puede convertir arrays
+        // JS a objetos con claves numéricas al guardarlos, rompiendo
+        // .length y operaciones de array al leer de vuelta.
+        const block = row[i];
+        const valuesObj = {};
+        for (let v = 0; v < block.values.length; v++) {
+          valuesObj[String(v)] = block.values[v];
+        }
+        blocksObj[String(i)] = {
+          id: block.id,
+          valuesObj: valuesObj,
+          valuesCount: block.values.length,
+          childValue: block.childValue,
+          childBlockId: block.childBlockId,
+        };
       }
       rowsObj[String(r)] = { _empty: false, blocks: blocksObj, count: row.length };
     }
@@ -433,10 +452,17 @@ function serializePyramidForFirebase(pyramid) {
 
 function deserializePyramidFromFirebase(serialized) {
   if (!serialized || !serialized.rows) {
-    // Estado nunca guardado todavía -> pirámide vacía nueva
     return null;
   }
   const height = serialized.height;
+  // maxSlotsPerRow puede venir como objeto de Firebase en vez de array
+  let maxSlotsPerRow = serialized.maxSlotsPerRow;
+  if (maxSlotsPerRow && !Array.isArray(maxSlotsPerRow)) {
+    maxSlotsPerRow = [];
+    for (let i = 0; i < height; i++) {
+      maxSlotsPerRow.push(serialized.maxSlotsPerRow[String(i)] || serialized.maxSlotsPerRow[i]);
+    }
+  }
   const rows = [];
   for (let r = 0; r < height; r++) {
     const rowData = serialized.rows[String(r)];
@@ -446,13 +472,41 @@ function deserializePyramidFromFirebase(serialized) {
       const count = rowData.count || 0;
       const row = [];
       for (let i = 0; i < count; i++) {
-        const block = rowData.blocks[String(i)];
-        if (block) row.push(block);
+        const blockData = rowData.blocks[String(i)];
+        if (blockData) {
+          // Reconstruir el array `values` desde el objeto serializado,
+          // protegiéndolo contra la conversión de Firebase.
+          const values = [];
+          const vc = blockData.valuesCount || 0;
+          if (blockData.valuesObj) {
+            for (let v = 0; v < vc; v++) {
+              values.push(blockData.valuesObj[String(v)]);
+            }
+          } else if (blockData.values) {
+            // Retrocompatibilidad: si viene del formato viejo (array directo),
+            // reconstruirlo como array real por si Firebase lo convirtió en objeto
+            if (Array.isArray(blockData.values)) {
+              values.push(...blockData.values);
+            } else {
+              for (let v = 0; typeof blockData.values[v] !== 'undefined' || typeof blockData.values[String(v)] !== 'undefined'; v++) {
+                const val = blockData.values[v] !== undefined ? blockData.values[v] : blockData.values[String(v)];
+                if (val === undefined) break;
+                values.push(val);
+              }
+            }
+          }
+          row.push({
+            id: blockData.id,
+            values: values,
+            childValue: blockData.childValue !== undefined ? blockData.childValue : null,
+            childBlockId: blockData.childBlockId !== undefined ? blockData.childBlockId : null,
+          });
+        }
       }
       rows.push(row);
     }
   }
-  return { rows, height, maxSlotsPerRow: serialized.maxSlotsPerRow };
+  return { rows, height, maxSlotsPerRow };
 }
 
 // ────────────────────────────────────────────────────────────────
