@@ -1384,7 +1384,7 @@ async function autoSkipFamiliarPass(playerId) {
 
   const { db, ref, update, get } = window.FB;
   await update(ref(db, "rooms/" + state.roomCode + "/familiarPassChoices"), {
-    [playerId]: null, // null = no tiene ninguna Familiar, no pasa nada
+    [playerId]: "__skip__", // no null (Firebase elimina nulls y la entrada desaparecería)
   });
 
   const snap = await get(ref(db, "rooms/" + state.roomCode));
@@ -1759,7 +1759,7 @@ function renderFamiliarPassZone(room, me) {
     // Ya decidiste (eligió una carta, o se marcó que no tiene ninguna)
     const status = document.createElement("div");
     status.className = "familiar-pass-waiting";
-    status.textContent = myChoice
+    status.textContent = (myChoice && myChoice !== "__skip__")
       ? "✅ Elegiste pasar la carta " + (me.hand[myChoice]?.number ?? "?") + ". Esperando a los demás..."
       : "✅ No tienes cartas Familiar. Esperando a los demás...";
     zone.appendChild(status);
@@ -2068,7 +2068,7 @@ function renderBoardTab(room, levelCfg, me, isHost) {
     const btnHome = document.createElement("button");
     btnHome.className = "btn";
     btnHome.textContent = "🏠 Volver al inicio";
-    btnHome.onclick = function() { location.reload(); };
+    btnHome.onclick = function() { localStorage.removeItem('bst_session'); location.reload(); };
     btnContainer.appendChild(btnHome);
 
     tab.appendChild(btnContainer);
