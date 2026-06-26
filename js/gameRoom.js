@@ -312,6 +312,7 @@ async function dealLevel(room) {
     pyramidStateBeforeLast: pyramidState, // mismo estado vacío al inicio
     pyramidHyperactiveChain: [], // valores Hyperactive acumulados desde la última carta normal
     pyramidLastNonHyperCard: null, // la última carta NO-Hyperactiva jugada (ancla fija de la cadena)
+    pyramidPlaySequence: [], // secuencia completa de cartas jugadas en este nivel (para debug)
     deckRemaining: deck.slice(deckIdx),
     lastPlayedCard: null,
     lastPlayedBy: null,
@@ -563,6 +564,16 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos, us
       const insertResult = window.PyramidBlocks.insertValue(pyramidCopy, card.number);
 
       if (!insertResult.ok) {
+        const _rejectRows = currentPyramidState.rows.map(function(row, ri) {
+          if (row.length === 0) return "row" + ri + ": vacía";
+          return "row" + ri + ": [" + row.map(function(b) {
+            return b.values.join(",") + (b.childValue != null ? "→" + b.childValue : "");
+          }).join("] [") + "]";
+        }).join(" | ");
+        const _seq = (room.pyramidPlaySequence || []).join(", ");
+        console.warn("[PyramidReject] Carta " + card.number + " (" + card.personality + ") rechazada." +
+          "\n  Secuencia previa: [" + _seq + "]" +
+          "\n  Estado actual: " + _rejectRows);
         return alert("Esa carta no tiene un espacio válido en la pirámide ahora mismo");
       }
 
@@ -576,6 +587,7 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos, us
   }
 
   if (pos === null && levelCfg.type === "BST") {
+    console.warn("[BSTReject] Carta " + card.number + " (" + card.personality + ") rechazada en BST.");
     return alert("Esa carta no tiene un espacio válido en el árbol/pirámide ahora mismo");
   }
 
@@ -609,6 +621,11 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos, us
     updates.pyramidStateBeforeLast = window.PyramidBlocks.serializePyramidForFirebase(pyramidSnapshotForNext);
     updates.pyramidHyperactiveChain = pyramidChainAfter;
     updates.pyramidLastNonHyperCard = pyramidNewAnchorCard;
+    // Acumular secuencia de jugadas para facilitar la reproducción de bugs
+    const prevSequence = room.pyramidPlaySequence || [];
+    const newSequence = [...prevSequence, card.number];
+    updates.pyramidPlaySequence = newSequence;
+    console.log("[PyramidSequence] Jugadas hasta ahora: [" + newSequence.join(", ") + "]");
     updates.pyramidState = window.PyramidBlocks.serializePyramidForFirebase(pyramidStateAfter);
     const cardLookup = (v) => {
       // Buscar la carta real jugada con ese número, para conservar
@@ -639,6 +656,24 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos, us
   let justPlacedOrderlySequential = false;
   let justChainedFamiliar = false;
   let justPlayedApex = false;
+
+  // ── Registro general de cada jugada (SIEMPRE, no solo para personalidades especiales) ──
+  const _playDesc = levelCfg.type + " | " + me.name + " jugó " + card.number +
+    " (" + card.personality + (effectivePersonality !== card.personality ? "→" + effectivePersonality : "") + ")" +
+    (levelCfg.type === "BST" && pos != null ? " → pos " + pos : "");
+  logMsgs.push(_playDesc);
+
+  // Para Pirámide: log detallado del estado de bloques DESPUÉS de esta jugada,
+  // visible en la consola del navegador para facilitar la reproducción de bugs.
+  if (levelCfg.type === "Pyramid" && pyramidStateAfter) {
+    const _rowsSummary = pyramidStateAfter.rows.map(function(row, ri) {
+      if (row.length === 0) return "row" + ri + ": vacía";
+      return "row" + ri + ": [" + row.map(function(b) {
+        return b.values.join(",") + (b.childValue != null ? "→" + b.childValue : "");
+      }).join("] [") + "]";
+    }).join(" | ");
+    console.log("[PyramidPlay] " + card.number + " jugada. Estado: " + _rowsSummary);
+  }
 
   if (reorderedLast) {
     logMsgs.push("⚡ " + me.name + " usó Hiperactiva: " + card.number +
