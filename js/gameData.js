@@ -55,7 +55,7 @@ export function buildDeck() {
 
 export const PERSONALITY_INFO = {
   Common:      "Sin efecto especial. La más numerosa — estadísticamente predecible (potencia 0)",
-  Loud:        "Al jugarse, todos los jugadores revelan brevemente su carta más alta (3 segundos) (potencia 1)",
+  Loud:        "Al jugarse, todos los jugadores revelan brevemente su carta más alta (15 segundos) (potencia 1)",
   Orderly:     "Al jugarse, si su padre o algún hijo ya colocado tiene un valor con diferencia exacta de ±1, otorga +1 punto (potencia 2)",
   Curious:     "Al jugarse, se muestran a todos las 2 cartas de arriba del mazo (sin tomarlas). Luego vuelven al fondo (potencia 3)",
   Familiar:    "Si 2 Familiar se juegan seguidas, se activa un pase: todos los que tengan una Familiar en mano eligen cuál pasar a su vecino de la izquierda, simultáneamente (potencia 4)",

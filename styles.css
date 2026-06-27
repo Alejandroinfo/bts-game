@@ -133,8 +133,12 @@ input[type="text"], select {
 /* ── Loud flash ── */
 .loud-flash {
   background: #F1C40F; color: #2E4057; text-align: center;
-  padding: 8px; font-weight: bold; font-size: 14px;
+  padding: 12px; font-weight: bold; font-size: 14px;
 }
+.loud-flash-label { margin-bottom: 8px; }
+.loud-flash-cards { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.loud-flash-card-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.loud-flash-name { font-size: 11px; font-weight: bold; color: #2E4057; }
 
 /* ── Vista previa de Curiosa ── */
 .curious-flash {
@@ -309,6 +313,14 @@ input[type="text"], select {
 .board-slot.selected { border-color: #F1C40F; background: rgba(241,196,15,0.15); }
 .board-slot .plus { font-size: 16px; }
 .board-slot .pos-label { font-size: 9px; }
+.last-played {
+  box-shadow: 0 0 0 3px #F1C40F, 0 0 12px rgba(241,196,15,0.5);
+  animation: pulse-last 1.5s ease-in-out infinite;
+}
+@keyframes pulse-last {
+  0%, 100% { box-shadow: 0 0 0 3px #F1C40F, 0 0 12px rgba(241,196,15,0.5); }
+  50% { box-shadow: 0 0 0 3px #F1C40F, 0 0 20px rgba(241,196,15,0.8); }
+}
 .board-line { position: absolute; background: #555; height: 2px; transform-origin: 0 0; }
 
 /* ── Mission cards ── */

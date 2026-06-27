@@ -334,24 +334,71 @@ function resolveToBoard(pyramid, cardLookup) {
 function resolveProvisional(pyramid, cardLookup) {
   const board = {};
 
-  for (let r = 0; r < pyramid.height; r++) {
+  // Paso 1: resolver la base (row 0) con centrado simple
+  const baseRow = pyramid.rows[0];
+  if (baseRow.length === 0) return board;
+  const baseMaxSlots = pyramid.maxSlotsPerRow[0];
+  const baseFilledSlots = baseRow.reduce((sum, b) => sum + b.values.length, 0);
+  const baseHeapPositions = getRowHeapPositions(pyramid.height, 0);
+  const baseStartOffset = Math.floor((baseMaxSlots - baseFilledSlots) / 2);
+
+  // Guardar la posición visual de cada bloque de la base para que
+  // las filas superiores puedan ubicar a sus hijos correctamente.
+  const blockVisualPositions = {}; // blockId -> [startSlotIdx, endSlotIdx] en su fila
+  let basePosIdx = baseStartOffset;
+  for (const block of baseRow) {
+    const startSlot = basePosIdx;
+    for (const v of block.values) {
+      const heapPos = baseHeapPositions[basePosIdx];
+      if (heapPos !== undefined) board[String(heapPos)] = cardLookup(v);
+      basePosIdx++;
+    }
+    blockVisualPositions[block.id] = [startSlot, basePosIdx - 1];
+  }
+
+  // Paso 2: resolver filas superiores posicionando cada bloque
+  // ARRIBA de su padre (no con centrado ciego). Un bloque en
+  // row r fue creado como hijo de un bloque fusionado en row r-1
+  // que tiene childBlockId apuntando a él.
+  for (let r = 1; r < pyramid.height; r++) {
     const row = pyramid.rows[r];
     if (row.length === 0) continue;
-
-    const maxSlots = pyramid.maxSlotsPerRow[r];
-    const filledSlots = row.reduce((sum, b) => sum + b.values.length, 0);
     const heapPositions = getRowHeapPositions(pyramid.height, r);
+    const parentRow = pyramid.rows[r - 1];
 
-    // Centrar el grupo de bloques dentro de los slots disponibles
-    const startOffset = Math.floor((maxSlots - filledSlots) / 2);
+    let fallbackPosIdx = 0; // fallback si no se encuentra el padre
 
-    let posIdx = startOffset;
     for (const block of row) {
-      for (const v of block.values) {
-        const heapPos = heapPositions[posIdx];
-        if (heapPos !== undefined) board[String(heapPos)] = cardLookup(v);
-        posIdx++;
+      // Buscar el bloque padre en la fila de abajo cuyo childBlockId === block.id
+      let parentBlock = null;
+      for (const pb of parentRow) {
+        if (pb.childBlockId === block.id) { parentBlock = pb; break; }
       }
+
+      let slotIdx;
+      if (parentBlock && blockVisualPositions[parentBlock.id]) {
+        // Posicionar el hijo en el centro del rango visual del padre
+        const [parentStart, parentEnd] = blockVisualPositions[parentBlock.id];
+        slotIdx = Math.floor((parentStart + parentEnd) / 2 / 2);
+        // Asegurar que no se sale del rango válido de esta fila
+        slotIdx = Math.min(slotIdx, heapPositions.length - 1);
+        slotIdx = Math.max(slotIdx, 0);
+      } else {
+        // Sin padre conocido (fila incompleta o bloque suelto) -> fallback
+        const maxSlots = pyramid.maxSlotsPerRow[r];
+        const filledSlots = row.reduce((sum, b) => sum + b.values.length, 0);
+        const startOffset = Math.floor((maxSlots - filledSlots) / 2);
+        slotIdx = startOffset + fallbackPosIdx;
+      }
+
+      const startSlot = slotIdx;
+      for (const v of block.values) {
+        const heapPos = heapPositions[slotIdx];
+        if (heapPos !== undefined) board[String(heapPos)] = cardLookup(v);
+        slotIdx++;
+      }
+      blockVisualPositions[block.id] = [startSlot, slotIdx - 1];
+      fallbackPosIdx += block.values.length;
     }
   }
 

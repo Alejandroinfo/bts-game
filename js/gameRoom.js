@@ -49,6 +49,7 @@ async function createRoom() {
   const difficulty = document.getElementById("hostDifficulty").value;
   const tutorialMode = document.getElementById("hostTutorialMode").checked;
   const missionsEnabled = document.getElementById("hostMissionsEnabled").checked;
+  const testMode = document.getElementById("hostTestMode").checked;
   if (!name) return alert("Escribe tu nombre");
 
   const { db, ref, set } = window.FB;
@@ -59,7 +60,7 @@ async function createRoom() {
   // Si está en modo tutorial, el pozo de vidas inicial es el del
   // tutorial (separado); se reinicia al pasar al Nivel 1 real.
   const startLives = tutorialMode ? window.GameData.TUTORIAL_DIFFICULTY.lives : diff.lives;
-  const startPts = tutorialMode ? window.GameData.TUTORIAL_DIFFICULTY.startPts : diff.startPts;
+  const startPts = testMode ? 10000 : (tutorialMode ? window.GameData.TUTORIAL_DIFFICULTY.startPts : diff.startPts);
 
   const roomData = {
     code,
@@ -730,12 +731,16 @@ async function playCard(cardId, useHyperactive, sacrificeCardId, demolishPos, us
   if (effectivePersonality === "Curious" && useCurious) {
     const deckForPeek = room.deckRemaining || [];
     if (deckForPeek.length >= 1) {
-      const peeked = deckForPeek.slice(-2); // las 2 de "arriba" (tope del mazo)
+      const peekCount = Math.min(2, deckForPeek.length);
+      const peeked = deckForPeek.slice(-peekCount); // las 2 de "arriba" (tope del mazo)
       updates.curiousPeek = {
         playerId: state.myId, playerName: me.name,
         cards: peeked, time: Date.now(),
       };
-      logMsgs.push("👀 " + me.name + " usa Curiosa: muestra " + peeked.length + " carta(s) del mazo a todos");
+      // Mover las cartas reveladas del tope al FONDO del mazo
+      const newDeck = [...peeked, ...deckForPeek.slice(0, -peekCount)];
+      updates.deckRemaining = newDeck;
+      logMsgs.push("👀 " + me.name + " usa Curiosa: muestra " + peeked.length + " carta(s) del mazo a todos (van al fondo del mazo)");
     }
   }
 
@@ -1992,9 +1997,36 @@ function renderGame(room) {
   });
 
   const loudFlash = document.getElementById("loudFlash");
-  if (room.loudTrigger && Date.now() - room.loudTrigger.time < 3000) {
+  if (room.loudTrigger && Date.now() - room.loudTrigger.time < 15000) {
     loudFlash.style.display = "block";
-    setTimeout(function() { loudFlash.style.display = "none"; }, 3000 - (Date.now() - room.loudTrigger.time));
+    loudFlash.innerHTML = "";
+
+    const loudLabel = document.createElement("div");
+    loudLabel.className = "loud-flash-label";
+    loudLabel.textContent = "🔊 ¡Carta RUIDOSA jugada por " + room.loudTrigger.playerName + "! Carta más alta de cada jugador:";
+    loudFlash.appendChild(loudLabel);
+
+    const cardsRow = document.createElement("div");
+    cardsRow.className = "loud-flash-cards";
+    for (const pid of Object.keys(room.players)) {
+      const player = room.players[pid];
+      const hand = Object.values(player.hand || {});
+      if (hand.length === 0) continue;
+      const highest = hand.reduce((a, b) => (a.number > b.number ? a : b));
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "loud-flash-card-wrap";
+      const nameLabel = document.createElement("div");
+      nameLabel.className = "loud-flash-name";
+      nameLabel.textContent = player.name;
+      cardDiv.appendChild(nameLabel);
+      const cardEl = window.CardRender.renderCard(highest, { small: true, hidePersonality: isPhase1Tutorial(room) });
+      cardDiv.appendChild(cardEl);
+      cardsRow.appendChild(cardDiv);
+    }
+    loudFlash.appendChild(cardsRow);
+
+    const remaining = 15000 - (Date.now() - room.loudTrigger.time);
+    setTimeout(function() { loudFlash.style.display = "none"; }, remaining);
   } else {
     loudFlash.style.display = "none";
   }
@@ -2050,6 +2082,7 @@ function renderBoardTab(room, levelCfg, me, isHost) {
     const boardDiv = document.createElement("div");
     window.BoardRender.renderBoard(boardDiv, room.board || {}, levelCfg, {
       hidePersonality: isPhase1Tutorial(room),
+      lastPlayedCard: room.lastPlayedCard,
     });
     panel.appendChild(boardDiv);
     tab.appendChild(panel);

@@ -46,6 +46,11 @@
         <span>🎯 Misiones activadas (desmárcalo para jugar sin misiones)</span>
       </label>
 
+      <label style="display:flex; align-items:center; gap:8px; margin-top:10px; cursor:pointer;">
+        <input id="hostTestMode" type="checkbox" style="width:auto; margin:0;">
+        <span>🔧 Modo prueba (10,000 puntos iniciales para testear)</span>
+      </label>
+
       <button class="btn btn-primary" onclick="GameRoom.createRoom()">Crear sala</button>
       <button class="btn btn-text" onclick="UI.showStart()">← Volver</button>
     </div>
@@ -105,9 +110,7 @@
     <div id="playersBar" class="players-bar"></div>
 
     <!-- Flash de carta Ruidosa -->
-    <div id="loudFlash" class="loud-flash" style="display:none;">
-      🔊 ¡CARTA RUIDOSA! Todos revelen brevemente su carta más alta (3 segundos)
-    </div>
+    <div id="loudFlash" class="loud-flash" style="display:none;"></div>
 
     <!-- Vista previa de Curiosa (cartas del mazo reveladas) -->
     <div id="curiousFlash" class="curious-flash" style="display:none;"></div>

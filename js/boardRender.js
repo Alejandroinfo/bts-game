@@ -86,17 +86,24 @@ function renderBoard(container, board, levelConfig, options = {}) {
         small: true,
         hidePersonality: !!options.hidePersonality,
       });
+      // Resaltar la última carta jugada
+      if (options.lastPlayedCard && card.number === options.lastPlayedCard.number) {
+        cardEl.classList.add("last-played");
+      }
       nodeDiv.appendChild(cardEl);
     } else {
       const slot = document.createElement("div");
       slot.className = "board-slot";
       slot.style.width = "100%"; slot.style.height = "100%";
-      slot.style.cursor = "default"; // ya no es clickeable
+      slot.style.cursor = "default";
+      // Etiqueta simplificada: número de posición dentro de su fila
+      // (de izquierda a derecha), sin los números de heap que confunden.
+      const slotNum = col + 1;
       const posLabel = levelType === "BST"
-        ? (pos === 1 ? "raíz" : pos % 2 === 0 ? "< padre" : "> padre")
+        ? (pos === 1 ? "raíz" : "")
         : (pos === 1 ? "ápice" : "");
-      slot.innerHTML = `<span class="plus">·</span><span class="pos-label">#${pos}</span>
-        <span class="pos-label" style="color:#777">${posLabel}</span>`;
+      slot.innerHTML = `<span class="plus">·</span>` +
+        (posLabel ? `<span class="pos-label">${posLabel}</span>` : "");
       nodeDiv.appendChild(slot);
     }
     canvas.appendChild(nodeDiv);
