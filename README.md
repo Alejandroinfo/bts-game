@@ -17,7 +17,7 @@ Prototipo multijugador real (Firebase Realtime Database) del Escenario A
 ("Información Mixta") del diseño v2. Ver los documentos de diseño:
 - `BST_v2_Decisiones_Generales.md`
 - `BST_v2_Escenario_A_InformacionMixta.md`
-- `BST_v2_Escenario_Revelacion_Tardia.md` (Escenario B, spec cerrada, 20 niveles)
+- `BST_v2_Escenario_B_Convenciones.md` (Escenario B todavía es placeholder)
 
 ### Modelo de seguridad de información (decisión explícita)
 
@@ -68,35 +68,15 @@ adicional.
 
 - **Escenario A**: 12 niveles, spec cerrada (ver `BST_v2_Escenario_A_InformacionMixta.md`).
   BST automático, Pirámide manual con point-and-click (posiciones inválidas
-  permitidas y solo registradas en log, no bloquean el flujo). Usa el
-  sistema de queue (declaración por turno → resolución → ejecución).
-- **Escenario B**: 20 niveles (10 BST + 10 Pirámide), spec cerrada (ver
-  `BST_v2_Escenario_Revelacion_Tardia.md`). Jugada simultánea libre, SIN
-  queue (la incertidumbre vive en el valor de las cartas, no en el orden
-  de juego). Mecánica de energía compartida (8-16, o 1 en niveles
-  "instantáneos"): revelación tardía con cascada top-down en BST,
-  revelación simultánea de pares en Pirámide, descarte de subárbol/triple
-  ante contradicción, y 3 acciones pagables con energía (robar, revelar
-  a zona común, demoler).
-
-## Reinicio de partida
-
-El host tiene un botón "↺ Reiniciar" visible durante el juego (en ambos
-escenarios) que vuelve la sala al lobby sin perder el código de sala ni
-la lista de jugadores conectados. Todos los demás jugadores pasan
-automáticamente al lobby vía su propio listener de Firebase — nadie
-tiene que reingresar el código. Desde el lobby, el host puede además
-cambiar de escenario (A↔B) antes de elegir nivel e iniciar de nuevo.
-Pensado como vía de escape barata ante errores de juego o ganas de
-cambiar de nivel, sin el costo de crear una sala nueva.
+  permitidas y solo registradas en log, no bloquean el flujo).
+- **Escenario B**: 2 niveles placeholder, sin spec cerrada todavía. Sirven
+  para navegar la UI, no representan dificultad real.
 
 ## Limitaciones conocidas de este prototipo
 
-- Si el host pierde conexión SIN usar el botón de reiniciar (cierre
-  accidental de pestaña, caída de red), nadie más puede repartir el
-  siguiente nivel hasta que el host vuelva a conectarse (reconexión
-  automática vía `localStorage`, ya soportada) — no hay traspaso de rol
-  de host a otro jugador todavía.
+- Sin reconexión robusta a media partida si el host se desconecta (si el
+  host cierra la pestaña a mitad de una ronda, nadie más puede repartir el
+  siguiente nivel — solo el host tiene ese botón).
 - Niveles con 2 árboles: la carta se intenta colocar en el primer árbol con
   espacio libre, en el orden en que aparecen en `level.trees` — no hay
   todavía una regla de diseño sobre "a cuál árbol va cada carta" cuando hay

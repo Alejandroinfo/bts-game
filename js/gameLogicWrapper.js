@@ -15,8 +15,3 @@ export const isValidPyramidPlacement = (...args) => window.GameLogicV2.isValidPy
 export const isPyramidBasePosition = (...args) => window.GameLogicV2.isPyramidBasePosition(...args);
 export const isVisibleTo = (...args) => window.GameLogicV2.isVisibleTo(...args);
 export const canAct = (...args) => window.GameLogicV2.canAct(...args);
-export const resolveBSTCascade = (...args) => window.GameLogicV2.resolveBSTCascade(...args);
-export const resolvePyramidParentPlay = (...args) => window.GameLogicV2.resolvePyramidParentPlay(...args);
-export const demolishBST = (...args) => window.GameLogicV2.demolishBST(...args);
-export const demolishPyramid = (...args) => window.GameLogicV2.demolishPyramid(...args);
-export const canPlayAsPyramidParentB = (...args) => window.GameLogicV2.canPlayAsPyramidParentB(...args);

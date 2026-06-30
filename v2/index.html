@@ -28,7 +28,7 @@
       <label>Escenario</label>
       <select id="hostScenario">
         <option value="A" selected>A — Información Mixta (12 niveles)</option>
-        <option value="B">B — Revelación Tardía (20 niveles)</option>
+        <option value="B">B — Revelación Tardía (placeholder)</option>
       </select>
       <p class="hint">El nivel exacto se elige después, dentro del lobby.</p>
 
@@ -77,12 +77,11 @@
       </div>
       <div style="display:flex; gap:14px; align-items:center;">
         <div class="lives" id="gameLives"></div>
-        <button id="restartRoomBtn" onclick="GameRoomV2.restartRoom()" title="Reiniciar partida (volver al lobby de esta sala)" style="display:none;">↺ Reiniciar</button>
         <button onclick="if(confirm('¿Volver al inicio?')) { localStorage.removeItem('bst_v2_session'); location.reload(); }" title="Volver al inicio">🏠</button>
       </div>
     </div>
 
-    <div class="layout" id="layoutA">
+    <div class="layout">
       <div class="game-panel">
         <h3>Otros jugadores</h3>
         <div id="otherPlayersCol"></div>
@@ -119,61 +118,6 @@
       <div class="game-panel">
         <h3>Log</h3>
         <div class="log-panel" id="logPanel"></div>
-      </div>
-    </div>
-
-    <!-- ═══════════════ LAYOUT ESCENARIO B — Revelación Tardía ═══════════════ -->
-    <div class="layout" id="layoutB" style="display:none;">
-      <div class="game-panel">
-        <h3>Otros jugadores</h3>
-        <div id="otherPlayersColB"></div>
-      </div>
-
-      <div class="center-col">
-        <div class="game-panel">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-            <h3 style="margin:0;">Tablero(s)</h3>
-            <div style="display:flex; gap:10px; align-items:center;">
-              <span id="energyBadgeB" class="energy-badge">⚡ —</span>
-              <span id="discardBadgeB" class="discard-badge">🗑 —</span>
-            </div>
-          </div>
-          <div class="board-wrap" id="boardsAreaB"></div>
-        </div>
-
-        <div class="game-panel">
-          <h3>Zona común (cartas reveladas, sin dueño)</h3>
-          <div class="my-hand" id="commonZoneRowB"></div>
-        </div>
-
-        <div class="game-panel">
-          <h3>Acciones de energía</h3>
-          <div class="b-actions-row">
-            <button id="drawBtnB" class="primary" onclick="GameRoomV2.actionDrawB()">🂠 Robar del descarte (⚡1)</button>
-            <button id="revealBtnB" class="primary" onclick="GameRoomV2.actionRevealFromHandB()">👁 Revelar carta seleccionada (⚡2)</button>
-            <button id="demolishBtnB" onclick="GameRoomV2.activateDemolishModeB()">💥 Demoler carta del tablero (⚡=cartas)</button>
-            <button id="deselectBtnB" class="btn-text" onclick="GameRoomV2.deselectCardB()" style="display:none;">Deseleccionar carta</button>
-          </div>
-          <p class="hint" id="actionHintB"></p>
-        </div>
-
-        <div class="game-panel">
-          <h3>Mi mano</h3>
-          <div class="my-hand" id="myHandRowB"></div>
-        </div>
-      </div>
-
-      <div class="game-panel">
-        <h3>Log</h3>
-        <div class="log-panel" id="logPanelB"></div>
-      </div>
-    </div>
-
-    <div id="endOverlayB" class="end-overlay" style="display:none;">
-      <div class="end-panel">
-        <h2 id="endTitleB"></h2>
-        <p id="endSubtitleB" class="hint"></p>
-        <button class="btn btn-primary" onclick="if(confirm('¿Volver al inicio?')) { localStorage.removeItem('bst_v2_session'); location.reload(); }">Volver al inicio</button>
       </div>
     </div>
   </div>

@@ -144,34 +144,3 @@ svg.tree-svg { display: block; margin: 0 auto; }
 
 .log-panel { max-height: 160px; overflow-y: auto; font-family: monospace; font-size: 11px; color: var(--ink-dim); }
 .log-panel div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.03); }
-
-/* ── Escenario B — Revelación Tardía ──────────────────────────── */
-.energy-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: var(--panel-2); border: 1px solid var(--accent);
-  border-radius: 20px; padding: 4px 12px; font-weight: 700; color: var(--accent); font-size: 13px;
-}
-.energy-badge.low { border-color: var(--bad); color: var(--bad); }
-.discard-badge {
-  background: var(--panel-2); border: 1px solid var(--line);
-  border-radius: 20px; padding: 4px 12px; font-size: 12px; color: var(--ink-dim);
-}
-.b-actions-row { display: flex; flex-direction: column; gap: 8px; }
-.b-actions-row button { text-align: left; padding: 8px 12px; }
-.b-actions-row button.active-mode { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-.b-actions-row button:disabled { opacity: 0.35; cursor: not-allowed; }
-.card.selected-b { outline: 2px solid var(--accent); outline-offset: 1px; }
-.card.common-zone-b { border-color: var(--good); background: rgba(95,174,110,0.12); }
-.node-slot.demolish-target { cursor: crosshair; }
-.node-slot.demolish-target rect { stroke: var(--bad); }
-.end-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
-  display: flex; align-items: center; justify-content: center; z-index: 50;
-}
-.end-panel {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  padding: 30px 40px; text-align: center; max-width: 360px;
-}
-.end-panel h2 { font-size: 22px; margin-bottom: 8px; }
-.end-panel h2.win { color: var(--good); }
-.end-panel h2.lose { color: var(--bad); }
