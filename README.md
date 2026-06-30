@@ -1,125 +1,105 @@
-# BST Animals — Web App (Firebase + Vercel)
+# BST Animals — Repo
 
-Juego cooperativo de cartas para 2-5 jugadores. Construye árboles BST y
-pirámides en silencio. Mismo patrón que la app del Día del Padre:
-HTML/JS plano + Firebase Realtime Database + Vercel.
-
-## Paso 1 — Crear proyecto Firebase
-
-1. Ve a https://console.firebase.google.com
-2. **Crear proyecto** → nómbralo `bst-animals` (o el que prefieras)
-3. Cuando termine, ve a **Build → Realtime Database → Create Database**
-4. Elige modo de seguridad: **Test mode** (cualquiera puede leer/escribir —
-   suficiente para jugar con amigos, no para producción pública)
-5. Selecciona la región más cercana
-
-## Paso 2 — Registrar la app web
-
-1. En la página principal del proyecto, busca **"Tus apps"**
-2. Click en el ícono **`</>`** (web)
-3. Nombra la app (ej: `bst-animals-web`) → **Registrar app**
-4. Cuando te pregunte **npm vs script tag**, elige **script tag**
-   (igual que hicimos con la app del Día del Padre)
-5. Copia el bloque `firebaseConfig` que te muestra
-
-## Paso 3 — Pegar credenciales
-
-Abre `js/firebase-init.js` y reemplaza el bloque `firebaseConfig` con el
-que copiaste de Firebase:
-
-```js
-const firebaseConfig = {
-  apiKey: "TU_API_KEY_REAL",
-  authDomain: "bst-animals.firebaseapp.com",
-  databaseURL: "https://bst-animals-default-rtdb.firebaseio.com",
-  projectId: "bst-animals",
-  storageBucket: "bst-animals.firebasestorage.app",
-  messagingSenderId: "...",
-  appId: "..."
-};
-```
-
-## Paso 4 — Probar en local
-
-Mismo flujo que usaste antes:
-
-```bash
-cd bst-firebase
-vercel link        # conecta con un proyecto Vercel (crea uno si no existe)
-vercel dev
-```
-
-Abre `http://localhost:3000` en dos pestañas para probar multijugador
-tú solo antes de invitar a tus amigos.
-
-## Paso 5 — Subir a producción
-
-```bash
-vercel --prod
-```
-
-O simplemente conecta el repo de GitHub a Vercel para que cada push
-haga deploy automático (igual que configuramos en el proyecto anterior).
-
-## Cómo jugar (resumen)
-
-1. El host crea una sala → comparte el código de 5 letras
-2. Los demás se unen con el código
-3. Fase de misiones: cada jugador puede tomar 1 misión del pool visible
-   pagando su costo, **antes** de ver su mano
-4. Click en "Listo" → cuando todos estén listos, se reparten las cartas
-5. Click en una carta de tu mano → click en una casilla del tablero
-6. Usa señales para comunicarte (si están desbloqueadas)
-7. El host termina el nivel cuando corresponda
-8. Ganan completando los 8 niveles antes de que el pozo de vidas llegue a 0
-
-## Estructura de archivos
+## Estructura
 
 ```
-bst-firebase/
-├── index.html              ← Estructura HTML, todas las pantallas
-├── styles.css               ← Todo el CSS
-└── js/
-    ├── firebase-init.js     ← Conexión a Firebase (PEGA TUS CREDENCIALES AQUÍ)
-    ├── gameData.js          ← Cartas, misiones, niveles, dificultad
-    ├── gameLogic.js         ← Validación de árbol BST y Pirámide
-    ├── ui.js                ← Navegación entre pantallas
-    ├── cardRender.js        ← Dibuja las cartas en HTML/CSS
-    ├── boardRender.js       ← Dibuja el árbol/pirámide en HTML/CSS
-    ├── missionRender.js     ← Dibuja el pool de misiones
-    ├── gameRoom.js          ← Toda la lógica de sala + sincronización Firebase
-    └── main.js              ← Punto de entrada, reconexión automática
+/                  ← v2 (lo que la gente ve al entrar al sitio)
+/v2/               ← copia idéntica de v2, accesible explícitamente
+/v1/               ← v1 completa, intacta, sin enlace visible desde la portada
 ```
 
-## Notas técnicas
+v1 sigue funcionando igual que siempre si alguien visita `tu-dominio.vercel.app/v1/`
+directamente, pero ya no es la página de entrada.
 
-- **Sin imágenes**: todas las cartas se dibujan con HTML/CSS puro, carga instantánea
-- **Reconexión automática**: si alguien recarga la página a mitad de partida,
-  `localStorage` guarda su sesión y vuelve a conectarse solo
-- **Validación en el cliente**: las reglas de BST/Pirámide se verifican en
-  el navegador de quien juega la carta, antes de escribir a Firebase
-- **Tiempo real**: cualquier cambio en Firebase se refleja instantáneamente
-  en todos los navegadores conectados a la sala (vía `onValue`)
+## v2 — qué es
 
-## Modo seguridad (para más adelante)
+Prototipo multijugador real (Firebase Realtime Database) del Escenario A
+("Información Mixta") del diseño v2. Ver los documentos de diseño:
+- `BST_v2_Decisiones_Generales.md`
+- `BST_v2_Escenario_A_InformacionMixta.md`
+- `BST_v2_Escenario_Revelacion_Tardia.md` (Escenario B, spec cerrada, 20 niveles)
 
-El modo "Test mode" de Firebase expira solas en 30 días y deja la base
-de datos abierta a cualquiera con la URL. Para una versión más cerrada,
-en Firebase Console → Realtime Database → Reglas, puedes usar:
+### Modelo de seguridad de información (decisión explícita)
 
-```json
-{
-  "rules": {
-    "rooms": {
-      "$code": {
-        ".read": true,
-        ".write": true
-      }
-    }
-  }
-}
-```
+v2 usa el modelo **"simple"**: cada navegador recibe el estado COMPLETO de la
+sala desde Firebase (todas las manos, ocultas o no) y decide del lado del
+cliente qué mostrar. No hay servidor que filtre por jugador — cualquiera
+podría ver toda la información abriendo la consola del navegador. Esto es
+aceptable jugando con amigos de confianza. Si en el futuro se necesita que
+sea imposible "hacer trampa" mirando la consola, hay que migrar a un modelo
+donde un backend decida qué le manda a cada cliente — eso es trabajo nuevo,
+no una extensión de lo que hay hoy.
 
-Esto sigue siendo abierto pero al menos no expira. Para autenticación
-real (que solo jugadores de la sala puedan escribir) se necesitaría
-Firebase Auth, que es un paso adicional no incluido en este MVP.
+## Firebase — una sola base de datos para v1 y v2
+
+v2 usa el **mismo proyecto Firebase que v1** (`bst-animals`), pero bajo una
+rama separada de la base de datos: `rooms_v2/` en vez de `rooms/`. No hay
+forma de que una sala de v1 choque con una de v2 — son ramas distintas del
+mismo árbol, como dos carpetas separadas.
+
+Las credenciales ya están en `js/firebase-init.js` (mismas que v1). Si en
+algún momento se decide separar a un proyecto Firebase propio para v2, solo
+hay que reemplazar el `firebaseConfig` en ese archivo (y en `/v2/js/` y
+`/v1/js/` si se quiere mantenerlas todas sincronizadas).
+
+### Reglas de seguridad de Firebase
+
+Si las reglas de Realtime Database de v1 son del tipo "todo público" (modo
+test), v2 funciona igual sin tocar nada. Si en algún momento se restringen
+las reglas, hay que asegurarse de que `rooms_v2/` tenga permisos de
+lectura/escritura equivalentes a los de `rooms/`.
+
+## Reparto de cartas — host-autoritativo
+
+El reparto (`dealLevel` en `js/gameRoom.js`) lo ejecuta **solo el host**,
+una vez, y el resultado se escribe a Firebase. Los demás navegadores solo
+leen vía `onValue` — ningún otro navegador corre su propio `Math.random()`
+de reparto. Esto es necesario para que todos vean exactamente las mismas
+manos; fue verificado explícitamente en testing antes de esta entrega.
+
+## Despliegue (Vercel)
+
+Es un sitio estático sin build step, igual que v1. Cualquier carpeta con
+un `index.html` se sirve directo. Subir esta carpeta completa (reemplazando
+el contenido actual del repo) y Vercel debería servir todo sin configuración
+adicional.
+
+## Niveles
+
+- **Escenario A**: 12 niveles, spec cerrada (ver `BST_v2_Escenario_A_InformacionMixta.md`).
+  BST automático, Pirámide manual con point-and-click (posiciones inválidas
+  permitidas y solo registradas en log, no bloquean el flujo). Usa el
+  sistema de queue (declaración por turno → resolución → ejecución).
+- **Escenario B**: 20 niveles (10 BST + 10 Pirámide), spec cerrada (ver
+  `BST_v2_Escenario_Revelacion_Tardia.md`). Jugada simultánea libre, SIN
+  queue (la incertidumbre vive en el valor de las cartas, no en el orden
+  de juego). Mecánica de energía compartida (8-16, o 1 en niveles
+  "instantáneos"): revelación tardía con cascada top-down en BST,
+  revelación simultánea de pares en Pirámide, descarte de subárbol/triple
+  ante contradicción, y 3 acciones pagables con energía (robar, revelar
+  a zona común, demoler).
+
+## Reinicio de partida
+
+El host tiene un botón "↺ Reiniciar" visible durante el juego (en ambos
+escenarios) que vuelve la sala al lobby sin perder el código de sala ni
+la lista de jugadores conectados. Todos los demás jugadores pasan
+automáticamente al lobby vía su propio listener de Firebase — nadie
+tiene que reingresar el código. Desde el lobby, el host puede además
+cambiar de escenario (A↔B) antes de elegir nivel e iniciar de nuevo.
+Pensado como vía de escape barata ante errores de juego o ganas de
+cambiar de nivel, sin el costo de crear una sala nueva.
+
+## Limitaciones conocidas de este prototipo
+
+- Si el host pierde conexión SIN usar el botón de reiniciar (cierre
+  accidental de pestaña, caída de red), nadie más puede repartir el
+  siguiente nivel hasta que el host vuelva a conectarse (reconexión
+  automática vía `localStorage`, ya soportada) — no hay traspaso de rol
+  de host a otro jugador todavía.
+- Niveles con 2 árboles: la carta se intenta colocar en el primer árbol con
+  espacio libre, en el orden en que aparecen en `level.trees` — no hay
+  todavía una regla de diseño sobre "a cuál árbol va cada carta" cuando hay
+  más de uno. Queda anotado como pendiente de diseño, no es un bug.
+- Pirámide usa una validación de heap-order simplificada para este
+  prototipo (no es el sistema completo de floating blocks de v1).

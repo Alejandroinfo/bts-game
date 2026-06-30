@@ -1,10 +1,14 @@
 // ════════════════════════════════════════════════════════════════
-// FIREBASE — Inicialización y conexión a Realtime Database (v2)
+// FIREBASE — Inicialización y conexión a Realtime Database
 // ════════════════════════════════════════════════════════════════
 //
-// Mismo proyecto Firebase que v1 (bst-animals). v2 usa una rama
-// separada de la base de datos ("rooms_v2/") para no chocar nunca
-// con las salas de v1 ("rooms/") — ver BST_v2 docs de diseño.
+// IMPORTANTE: Reemplaza firebaseConfig con tus propias credenciales.
+// Ve a https://console.firebase.google.com → crea un proyecto nuevo
+// llamado "bst-animals" (o el nombre que prefieras) → Realtime Database
+// → Build → Create Database → modo "Test mode" para empezar.
+//
+// Luego en Project Settings → General → "Tus apps" → ícono </> (web)
+// → Registrar app → copia el bloque firebaseConfig y pégalo abajo.
 //
 // ════════════════════════════════════════════════════════════════
 
@@ -14,7 +18,7 @@ import {
   onValue, off, runTransaction, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
 
-// ── Mismas credenciales que v1 (bst-animals) ────────────────────────
+// ── Credenciales de bst-animals ─────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyARoCr10qZP4M_fd_t__d4NUWmKL9pD6lc",
   authDomain: "bst-animals.firebaseapp.com",
@@ -29,14 +33,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// Exponer en window para que los demás módulos lo usen fácilmente
+// (mismo patrón que la app del Día del Padre)
 window.FB = {
   db, ref, set, get, update, remove, push,
   onValue, off, runTransaction, serverTimestamp
 };
 
-// Prefijo de rama exclusivo de v2 — todo gameRoom.js de v2 debe leer
-// y escribir bajo "rooms_v2/{code}", nunca bajo "rooms/{code}" (eso
-// es v1, intocable desde aquí).
-window.FB_ROOT = "rooms_v2";
-
-console.log("Firebase inicializado correctamente (v2 — rama rooms_v2/)");
+console.log("Firebase inicializado correctamente");
